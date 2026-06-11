@@ -168,8 +168,9 @@ export type ContactNote = {
   id: string;
   contact_key: string;
   job_id: string | null;
-  note: string;
+  body: string;
   created_at: string;
+  updated_at: string;
 };
 
 export type GhlTokenStatus = {

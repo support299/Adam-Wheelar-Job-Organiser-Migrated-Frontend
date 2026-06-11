@@ -9,6 +9,7 @@ import { ConnectPage } from "@/pages/ConnectPage";
 import { ContactsListPage } from "@/pages/ContactsListPage";
 import { ContactDetailPage } from "@/pages/ContactDetailPage";
 import { ContactJobsPage } from "@/pages/ContactJobsPage";
+import { AdminMapsKeyPage } from "@/pages/AdminMapsKeyPage";
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="/connect" element={<AccessGate><ConnectPage /></AccessGate>} />
         <Route path="/contacts" element={<AccessGate><ContactsListPage /></AccessGate>} />
         <Route path="/contacts/:contactId" element={<AccessGate><ContactDetailPage /></AccessGate>} />
+        <Route path="/admin/maps-key" element={<AdminMapsKeyPage />} />
       </Routes>
     </>
   );

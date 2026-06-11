@@ -86,6 +86,23 @@ export function contactIdFromKey(key: string): string {
   return encodeURIComponent(key);
 }
 
+// Derive the canonical contact_key for a single job, matching the
+// union-find rooting used in groupJobsByContact.
+// eslint-disable-next-line react-refresh/only-export-components
+export function contactKeyForJob(j: {
+  id: string;
+  email: string | null;
+  phone: string | null;
+}): string {
+  const norm = (s: string | null | undefined) =>
+    (s ?? "").trim().toLowerCase().replace(/\s+/g, "");
+  const p = norm(j.phone);
+  if (p) return "p:" + p;
+  const e = norm(j.email);
+  if (e) return "e:" + e;
+  return "j:" + j.id;
+}
+
 export function ContactsListPage() {
   const { data: jobs = [], isLoading } = useListJobsQuery();
   const [search, setSearch] = useState("");

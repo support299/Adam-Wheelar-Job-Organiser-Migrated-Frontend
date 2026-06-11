@@ -21,11 +21,18 @@ export const contactsApi = baseApi.injectEndpoints({
           ? [...result.map(({ id }) => ({ type: "ContactNote" as const, id })), { type: "ContactNote", id: "LIST" }]
           : [{ type: "ContactNote", id: "LIST" }],
     }),
-    createContactNote: build.mutation<ContactNote, { contact_key: string; job_id?: string; note: string }>({
-      query: (body) => ({ url: "/contacts/notes/", method: "POST", body }),
+    listContactNotesByJobId: build.query<ContactNote[], string>({
+      query: (jobId) => `/contacts/notes/?job_id=${encodeURIComponent(jobId)}`,
+      providesTags: (result) =>
+        result
+          ? [...result.map(({ id }) => ({ type: "ContactNote" as const, id })), { type: "ContactNote", id: "LIST" }]
+          : [{ type: "ContactNote", id: "LIST" }],
+    }),
+    createContactNote: build.mutation<ContactNote, { contact_key: string; job_id?: string; body: string }>({
+      query: (data) => ({ url: "/contacts/notes/", method: "POST", body: data }),
       invalidatesTags: [{ type: "ContactNote", id: "LIST" }],
     }),
-    updateContactNote: build.mutation<ContactNote, { id: string; body: { note: string } }>({
+    updateContactNote: build.mutation<ContactNote, { id: string; body: { body: string } }>({
       query: ({ id, body }) => ({ url: `/contacts/notes/${id}/`, method: "PATCH", body }),
       invalidatesTags: (_r, _e, { id }) => [{ type: "ContactNote", id }, { type: "ContactNote", id: "LIST" }],
     }),
@@ -40,6 +47,7 @@ export const {
   useListGhlContactsQuery,
   useListGhlUsersQuery,
   useListContactNotesQuery,
+  useListContactNotesByJobIdQuery,
   useCreateContactNoteMutation,
   useUpdateContactNoteMutation,
   useDeleteContactNoteMutation,

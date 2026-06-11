@@ -100,7 +100,7 @@ export function ContactActivity({
 
   function openEdit(n: ContactNote) {
     setEditing(n);
-    setBody(n.note);
+    setBody(n.body);
     setJobId(n.job_id ?? NO_JOB);
     setOpen(true);
   }
@@ -113,12 +113,12 @@ export function ContactActivity({
     }
     try {
       if (editing) {
-        await updateNote({ id: editing.id, body: { note: text } }).unwrap();
+        await updateNote({ id: editing.id, body: { body: text } }).unwrap();
         toast.success("Note updated");
       } else {
         await createNote({
           contact_key: contactKey,
-          note: text,
+          body: text,
           job_id: jobId === NO_JOB ? undefined : jobId,
         }).unwrap();
         toast.success("Note added");
@@ -213,7 +213,7 @@ export function ContactActivity({
                         <Badge variant="outline">Job removed</Badge>
                       ) : null}
                     </div>
-                    <div className="text-sm mt-1 whitespace-pre-wrap break-words">{n.note}</div>
+                    <div className="text-sm mt-1 whitespace-pre-wrap break-words">{n.body}</div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <Button variant="ghost" size="icon" onClick={() => openEdit(n)} aria-label="Edit note">

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000/api";
+const IFRAME_SECRET = import.meta.env.VITE_IFRAME_SECRET ?? "";
 
 function isIframe(): boolean {
   try { return window.self !== window.top; } catch { return true; }
@@ -21,9 +22,7 @@ export function AccessGate({ children }: Props) {
   const accessToken = useSelector((s: RootState) => s.auth.accessToken);
 
   const [status, setStatus] = useState<"checking" | "authed" | "login">(() => {
-    if (isIframe()) return "authed";
-    // Already have a stored token — go straight to authed
-    // (RTK Query's 401 middleware will silently refresh if it's expired)
+    // If a token is already stored, go straight to authed for both iframe and normal
     if (localStorage.getItem("rdp_access")) return "authed";
     return "checking";
   });
@@ -33,18 +32,45 @@ export function AccessGate({ children }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [login, { isLoading }] = useLoginMutation();
 
-  // If RTK Query's 401 handler exhausts the refresh token it calls
-  // clearCredentials — watch for that and drop back to login screen.
+  // When RTK Query's 401 handler clears credentials, re-check:
+  // - iframe: silently re-fetch a new token
+  // - normal: drop to login screen
   useEffect(() => {
     if (!accessToken && status === "authed") {
-      setStatus("login");
+      if (isIframe()) {
+        setStatus("checking");
+      } else {
+        setStatus("login");
+      }
     }
   }, [accessToken, status]);
 
-  // First-time load: no stored token — try the refresh endpoint
+  // First-time load with no stored token
   useEffect(() => {
-    if (isIframe() || status !== "checking") return;
+    if (status !== "checking") return;
 
+    if (isIframe()) {
+      // Auto-login silently using the shared iframe secret
+      if (!IFRAME_SECRET) { setStatus("login"); return; }
+      fetch(`${API_BASE}/auth/iframe-token/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ secret: IFRAME_SECRET }),
+      })
+        .then(async (r) => {
+          if (r.ok) {
+            const data = await r.json() as { access: string; refresh: string };
+            dispatch(setCredentials({ accessToken: data.access, refreshToken: data.refresh }));
+            setStatus("authed");
+          } else {
+            setStatus("login");
+          }
+        })
+        .catch(() => setStatus("login"));
+      return;
+    }
+
+    // Normal flow: try stored refresh token
     const refreshToken = localStorage.getItem(REFRESH_KEY);
     if (!refreshToken) { setStatus("login"); return; }
 

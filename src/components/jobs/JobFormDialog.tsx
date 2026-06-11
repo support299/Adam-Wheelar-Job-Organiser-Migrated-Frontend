@@ -31,6 +31,8 @@ import {
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { AddressAutocomplete } from "@/components/jobs/AddressAutocomplete";
+import { JobActivity } from "@/components/jobs/JobActivity";
+import { contactKeyForJob } from "@/pages/ContactsListPage";
 import { FREQUENCY_LABELS, type RecurrenceFrequency } from "@/lib/jobs";
 import { toast } from "sonner";
 import { useListStaffQuery } from "@/api/staffApi";
@@ -101,6 +103,7 @@ export function JobFormDialog({
 }: Props) {
   const [form, setForm] = useState<JobInsert>(empty);
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState("details");
   const [addressMode, setAddressMode] = useState<"automatic" | "manual">("automatic");
   const [staffIds, setStaffIds] = useState<string[]>([]);
   const [lineItems, setLineItems] = useState<JobProductLine[]>([]);
@@ -132,6 +135,10 @@ export function JobFormDialog({
       setLineItems([]);
     }
   }, [open, existingProducts, job]);
+
+  useEffect(() => {
+    if (open) setActiveTab("details");
+  }, [open]);
 
   useEffect(() => {
     if (open) {
@@ -294,9 +301,17 @@ export function JobFormDialog({
         <DialogHeader>
           <DialogTitle>{job ? "Edit Job" : "Enter New Job"}</DialogTitle>
         </DialogHeader>
+        {job && (
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-2">
+              <TabsTrigger value="details">Details</TabsTrigger>
+              <TabsTrigger value="activity">Activity</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        )}
         <div className="grid gap-4">
           {/* Contact picker */}
-          <div className="grid gap-1.5">
+          <div className="grid gap-1.5" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
             <Label>Contact</Label>
             <Popover open={contactPickerOpen} onOpenChange={setContactPickerOpen}>
               <PopoverTrigger asChild>
@@ -343,7 +358,7 @@ export function JobFormDialog({
           </div>
 
           {/* Address */}
-          <div className="grid gap-2">
+          <div className="grid gap-2" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
             <Label>Address</Label>
             <Tabs value={addressMode} onValueChange={(v) => setAddressMode(v as "automatic" | "manual")}>
               <TabsList className="grid w-full grid-cols-2">
@@ -415,7 +430,7 @@ export function JobFormDialog({
           </div>
 
           {/* Service type + sale date */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
             <div className="grid gap-1.5">
               <Label>Service Type</Label>
               <Select
@@ -448,7 +463,7 @@ export function JobFormDialog({
           </div>
 
           {/* Dates */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
             <div className="grid gap-1.5">
               <Label>Service/Installation Date</Label>
               <Input
@@ -468,7 +483,7 @@ export function JobFormDialog({
           </div>
 
           {/* Service value */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
             <div className="grid gap-1.5">
               <Label>Amount ($)</Label>
               <Input
@@ -482,7 +497,7 @@ export function JobFormDialog({
           </div>
 
           {/* Recurring */}
-          <div className="grid gap-1.5">
+          <div className="grid gap-1.5" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
             <Label>Job Type</Label>
             <Tabs
               value={form.is_recurring ? "recurring" : "onetime"}
@@ -518,7 +533,7 @@ export function JobFormDialog({
           </div>
 
           {/* Status */}
-          <div className="grid gap-1.5">
+          <div className="grid gap-1.5" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
             <Label>Status</Label>
             <Select
               value={form.status ?? "pending"}
@@ -539,7 +554,7 @@ export function JobFormDialog({
           </div>
 
           {/* Call status */}
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_120px] gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_120px] gap-3" style={job && activeTab !== "activity" ? { display: "none" } : undefined}>
             <div className="grid gap-1.5">
               <Label>Call Status</Label>
               <Select
@@ -568,7 +583,7 @@ export function JobFormDialog({
           </div>
 
           {/* Staff */}
-          <div className="grid gap-1.5">
+          <div className="grid gap-1.5" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
             <Label>
               Assigned Staff
               {form.status === "pending" && (
@@ -644,7 +659,7 @@ export function JobFormDialog({
           </div>
 
           {/* Products */}
-          <div className="grid gap-1.5">
+          <div className="grid gap-1.5" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
             <div className="flex items-center justify-between">
               <Label>Products / Line Items</Label>
               <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
@@ -704,7 +719,7 @@ export function JobFormDialog({
           </div>
 
           {/* Notes */}
-          <div className="grid gap-1.5">
+          <div className="grid gap-1.5" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
             <Label>Notes</Label>
             <Textarea
               rows={2}
@@ -712,6 +727,13 @@ export function JobFormDialog({
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
             />
           </div>
+
+          {/* Activity (job notes) — only visible when editing an existing job */}
+          {job && (
+            <div className="border-t pt-4" style={activeTab !== "activity" ? { display: "none" } : undefined}>
+              <JobActivity jobId={job.id} contactKey={contactKeyForJob(job)} />
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

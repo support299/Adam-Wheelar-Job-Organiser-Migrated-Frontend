@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
-import { useGetGhlStatusQuery, useRefreshGhlTokenMutation } from "@/api/ghlApi";
+import { useGetGhlStatusQuery, useRefreshGhlTokenMutation, useSyncGhlContactsMutation } from "@/api/ghlApi";
 import type { GhlTokenStatus } from "@/api/types";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000/api";
@@ -17,6 +17,7 @@ export function ConnectPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: status, isLoading: statusLoading, refetch: refetchStatus } = useGetGhlStatusQuery();
   const [refreshToken, { isLoading: refreshing }] = useRefreshGhlTokenMutation();
+  const [syncContacts, { isLoading: syncing }] = useSyncGhlContactsMutation();
   const toastedRef = useRef(false);
 
   useEffect(() => {
@@ -41,8 +42,16 @@ export function ConnectPage() {
       toast.success("Tokens refreshed.");
       void refetchStatus();
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Refresh failed";
-      toast.error(msg);
+      toast.error(e instanceof Error ? e.message : "Refresh failed");
+    }
+  }
+
+  async function handleSyncContacts() {
+    try {
+      const { synced } = await syncContacts().unwrap();
+      toast.success(`Synced ${synced} contacts from GoHighLevel.`);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Contact sync failed");
     }
   }
 
@@ -92,13 +101,20 @@ export function ConnectPage() {
               <>
                 <TokenRow label="Company token" row={status?.company ?? null} />
                 <TokenRow label="Location token" row={status?.location ?? null} />
-                <div className="flex items-center gap-2 pt-2">
+                <div className="flex items-center gap-2 pt-2 flex-wrap">
                   <Button
                     variant="outline"
                     onClick={handleRefresh}
                     disabled={refreshing || !status?.company}
                   >
                     {refreshing ? "Refreshing…" : "Refresh tokens"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleSyncContacts}
+                    disabled={syncing || !status?.location}
+                  >
+                    {syncing ? "Syncing…" : "Sync contacts"}
                   </Button>
                   <Button variant="ghost" onClick={() => void refetchStatus()} disabled={refreshing}>
                     Reload

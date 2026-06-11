@@ -14,6 +14,10 @@ export const ghlApi = baseApi.injectEndpoints({
       query: () => ({ url: "/ghl/refresh/", method: "POST" }),
       invalidatesTags: [{ type: "GhlToken", id: "STATUS" }],
     }),
+    syncGhlContacts: build.mutation<{ synced: number }, void>({
+      query: () => ({ url: "/ghl/sync-contacts/", method: "POST" }),
+      invalidatesTags: [{ type: "Contact", id: "LIST" }],
+    }),
   }),
 });
 
@@ -21,4 +25,5 @@ export const {
   useGetGhlStatusQuery,
   useGetGhlConfigQuery,
   useRefreshGhlTokenMutation,
+  useSyncGhlContactsMutation,
 } = ghlApi;
