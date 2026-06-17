@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import type { Job, JobInsert, JobProductLine, Staff } from "@/api/types";
 import {
   useListJobsQuery,
+  useListJobsPagedQuery,
   useCreateJobMutation,
   useUpdateJobMutation,
   useDeleteJobMutation,
@@ -202,6 +203,7 @@ function MapCalendar({
 }) {
   const [view, setView] = useState<CalView>("month");
   const [anchor, setAnchor] = useState<Date>(() => new Date());
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [staffFilter, setStaffFilter] = useState<string>("all");
   const [useCircle, setUseCircle] = useState(false);
   const [slotPick, setSlotPick] = useState<{ date: Date; hour: number } | null>(null);
@@ -223,7 +225,7 @@ function MapCalendar({
     const startIso = isoDate(range.start);
     const endIso = isoDate(range.end);
     return jobs.filter((j) => {
-      if (j.status !== "scheduled") return false;
+      if (statusFilter !== "all" && j.status !== statusFilter) return false;
       if (j.service_date < startIso || j.service_date > endIso) return false;
       if (staffFilter !== "all") {
         const ids = jobStaffMap[j.id] ?? [];
@@ -235,7 +237,7 @@ function MapCalendar({
       }
       return true;
     });
-  }, [jobs, range, staffFilter, useCircle, circle, jobStaffMap]);
+  }, [jobs, range, statusFilter, staffFilter, useCircle, circle, jobStaffMap]);
 
   const jobsByDay = useMemo(() => {
     const map: Record<string, Job[]> = {};
@@ -279,6 +281,7 @@ function MapCalendar({
           <div className="font-semibold text-base ml-1">{label}</div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <StatusFilter value={statusFilter} onChange={setStatusFilter} />
           <StaffFilter value={staffFilter} onChange={setStaffFilter} staff={staff} />
           <Button
             variant={useCircle ? "default" : "outline"}
@@ -310,7 +313,7 @@ function MapCalendar({
       )}
 
       <div className="text-xs text-muted-foreground mt-3">
-        {filtered.length} scheduled job{filtered.length === 1 ? "" : "s"} in range
+        {filtered.length} {statusFilter === "all" ? "" : `${statusFilter} `}job{filtered.length === 1 ? "" : "s"} in range
         {useCircle && circle ? ` · within ${(circle.radiusMeters / 1000).toFixed(2)} km of drawn circle` : ""}
       </div>
       <AvailableStaffDialog pick={slotPick} onClose={() => setSlotPick(null)} staff={staff} jobs={jobs} jobStaffMap={jobStaffMap} />
@@ -646,57 +649,67 @@ function MapViewPanel({
   }, [circleFilteredJobs, mapSearch]);
 
   return (
-    <div className="space-y-4 max-w-[1700px] mx-auto w-full">
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_340px] gap-3 items-stretch">
-        <Card className="p-3 flex flex-col min-w-0">
-          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-            <p className="text-sm text-muted-foreground">
-              {jobs.length} job{jobs.length === 1 ? "" : "s"} on map
-              {dateFrom || dateTo ? ` ${dateFrom || "…"} → ${dateTo || "…"}` : ""}
-            </p>
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-1 flex-wrap">
-                <Input type="date" className="w-auto" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="From date" />
-                <span className="text-xs text-muted-foreground">to</span>
-                <Input type="date" className="w-auto" value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="To date" />
-                {(dateFrom || dateTo) && (
-                  <Button variant="ghost" size="sm" onClick={() => { setDateFrom(""); setDateTo(""); }}>Clear</Button>
-                )}
-              </div>
-              <StatusFilter value={statusFilter} onChange={setStatusFilter} />
-              <DueTagFilter value={dueTagFilter} onChange={setDueTagFilter} />
-              <StaffFilter value={staffFilter} onChange={setStaffFilter} staff={staff} />
-              <CallStatusFilter value={callStatusFilter} onChange={setCallStatusFilter} />
-              <div className="flex items-center gap-1">
-                <Input type="number" min={0} step="1" value={callsMin} onChange={(e) => setCallsMin(e.target.value)} placeholder="Min calls" className="w-[100px]" title="Minimum calls made" />
-                <span className="text-xs text-muted-foreground">to</span>
-                <Input type="number" min={0} step="1" value={callsMax} onChange={(e) => setCallsMax(e.target.value)} placeholder="Max calls" className="w-[100px]" title="Maximum calls made" />
-                {(callsMin || callsMax) && (
-                  <Button variant="ghost" size="sm" onClick={() => { setCallsMin(""); setCallsMax(""); }}>Clear</Button>
-                )}
-              </div>
-              <Button
-                variant={drawCircleEnabled ? "default" : "outline"}
-                size="sm"
-                onClick={() => {
-                  setDrawCircleEnabled((v) => {
-                    const next = !v;
-                    if (next) setCircle(null);
-                    return next;
-                  });
-                }}
-                title="Click and drag on the map to draw a circle"
-              >
-                <CircleIcon className="h-4 w-4 mr-1" />
-                {drawCircleEnabled ? "Drawing… (drag on map)" : "Draw Circle"}
+    <div className="space-y-3 max-w-[1700px] mx-auto w-full">
+      {/* Filter toolbar */}
+      <Card className="p-3 space-y-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <p className="text-sm font-medium">
+            {jobs.length} job{jobs.length === 1 ? "" : "s"} on map
+            {dateFrom || dateTo ? (
+              <span className="text-muted-foreground font-normal"> · {dateFrom || "…"} → {dateTo || "…"}</span>
+            ) : ""}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant={drawCircleEnabled ? "default" : "outline"}
+              size="sm"
+              onClick={() => {
+                setDrawCircleEnabled((v) => {
+                  const next = !v;
+                  if (next) setCircle(null);
+                  return next;
+                });
+              }}
+              title="Click and drag on the map to draw a circle"
+            >
+              <CircleIcon className="h-4 w-4 mr-1" />
+              {drawCircleEnabled ? "Drawing… (drag on map)" : "Draw Circle"}
+            </Button>
+            {circle && (
+              <Button variant="ghost" size="sm" onClick={() => { setCircle(null); setDrawCircleEnabled(false); }}>
+                Clear circle
               </Button>
-              {circle && (
-                <Button variant="ghost" size="sm" onClick={() => { setCircle(null); setDrawCircleEnabled(false); }}>
-                  Clear circle
-                </Button>
-              )}
-            </div>
+            )}
           </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 rounded-md border bg-muted/30 px-2 py-1">
+            <CalendarIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+            <Input type="date" className="w-auto border-0 bg-transparent shadow-none px-1 h-7 focus-visible:ring-0" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="From date" />
+            <span className="text-xs text-muted-foreground">to</span>
+            <Input type="date" className="w-auto border-0 bg-transparent shadow-none px-1 h-7 focus-visible:ring-0" value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="To date" />
+            {(dateFrom || dateTo) && (
+              <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => { setDateFrom(""); setDateTo(""); }}>Clear</Button>
+            )}
+          </div>
+          <StatusFilter value={statusFilter} onChange={setStatusFilter} />
+          <DueTagFilter value={dueTagFilter} onChange={setDueTagFilter} />
+          <StaffFilter value={staffFilter} onChange={setStaffFilter} staff={staff} />
+          <CallStatusFilter value={callStatusFilter} onChange={setCallStatusFilter} />
+          <div className="flex items-center gap-1 rounded-md border bg-muted/30 px-2 py-1">
+            <Input type="number" min={0} step="1" value={callsMin} onChange={(e) => setCallsMin(e.target.value)} placeholder="Min calls" className="w-[90px] border-0 bg-transparent shadow-none px-1 h-7 focus-visible:ring-0" title="Minimum calls made" />
+            <span className="text-xs text-muted-foreground">to</span>
+            <Input type="number" min={0} step="1" value={callsMax} onChange={(e) => setCallsMax(e.target.value)} placeholder="Max calls" className="w-[90px] border-0 bg-transparent shadow-none px-1 h-7 focus-visible:ring-0" title="Maximum calls made" />
+            {(callsMin || callsMax) && (
+              <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => { setCallsMin(""); setCallsMax(""); }}>Clear</Button>
+            )}
+          </div>
+        </div>
+      </Card>
+
+      {/* Map + side list */}
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_360px] gap-3 items-stretch">
+        <Card className="p-2 flex flex-col min-w-0">
           <JobMap
             jobs={circleFilteredJobs}
             focusedId={focusedJobId}
@@ -705,11 +718,11 @@ function MapViewPanel({
             drawCircleEnabled={drawCircleEnabled}
             circle={circle}
             onCircleChange={(c) => { setCircle(c); setDrawCircleEnabled(false); }}
-            className="w-full flex-1 min-h-[50vh] rounded-md overflow-hidden border bg-muted"
+            className="w-full h-[56vh] rounded-md overflow-hidden border bg-muted"
           />
         </Card>
 
-        <Card className="p-3 flex flex-col h-full min-h-[50vh]">
+        <Card className="p-3 flex flex-col h-[calc(56vh+1rem)]">
           <div className="relative mb-2">
             <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input className="pl-9" placeholder="Search jobs on map" value={mapSearch} onChange={(e) => setMapSearch(e.target.value)} />
@@ -1224,7 +1237,7 @@ function DailyPlanner({
 // ─── IndexPage ───────────────────────────────────────────────────────────────
 
 export function IndexPage() {
-  const { data: jobs = [], isLoading } = useListJobsQuery();
+  const { data: jobs = [] } = useListJobsQuery();
   const { data: staff = [] } = useListStaffQuery();
   const { data: jobStaffRows = [], refetch: refetchJobStaff } = useListJobStaffQuery();
   const [createJob] = useCreateJobMutation();
@@ -1241,11 +1254,24 @@ export function IndexPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [dueTagFilter, setDueTagFilter] = useState("all");
   const [staffFilter, setStaffFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
+
+  // Debounce the Jobs List search so we don't fire a request per keystroke.
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
   const [mapSearch, setMapSearch] = useState("");
   const [mapStatusFilter, setMapStatusFilter] = useState("pending");
   const [focusedJobId, setFocusedJobId] = useState<string | null>(null);
-  const [mapDateFrom, setMapDateFrom] = useState("");
-  const [mapDateTo, setMapDateTo] = useState("");
+  // Default the map to the current month (1st → last day) so it doesn't try to
+  // plot every job at once.
+  const [mapDateFrom, setMapDateFrom] = useState(() =>
+    isoDate(startOfMonth(new Date())),
+  );
+  const [mapDateTo, setMapDateTo] = useState(() => isoDate(endOfMonth(new Date())));
   const [mapCallStatusFilter, setMapCallStatusFilter] = useState("all");
   const [mapCallsMin, setMapCallsMin] = useState("");
   const [mapCallsMax, setMapCallsMax] = useState("");
@@ -1258,28 +1284,25 @@ export function IndexPage() {
     return map;
   }, [jobStaffRows]);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return jobs.filter((j) => {
-      if (dateFilter && j.service_date !== dateFilter) return false;
-      if (statusFilter !== "all" && j.status !== statusFilter) return false;
-      if (dueTagFilter !== "all") {
-        const t = getDueTag(j);
-        if (t !== dueTagFilter) return false;
-      }
-      if (staffFilter !== "all") {
-        const ids = jobStaffMap[j.id] ?? [];
-        if (staffFilter === "unassigned") { if (ids.length > 0) return false; }
-        else if (!ids.includes(staffFilter)) return false;
-      }
-      if (!q) return true;
-      return (
-        j.name.toLowerCase().includes(q) ||
-        j.email.toLowerCase().includes(q) ||
-        j.address.toLowerCase().includes(q)
-      );
+  // Reset to the first page whenever the Jobs List filters change.
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, dateFilter, statusFilter, dueTagFilter, staffFilter]);
+
+  // Jobs List is paginated server-side so the browser only fetches one page.
+  const { data: jobsPage, isLoading: jobsPageLoading, isFetching: jobsPageFetching } =
+    useListJobsPagedQuery({
+      page,
+      pageSize: PAGE_SIZE,
+      search: debouncedSearch || undefined,
+      status: statusFilter,
+      dueTag: dueTagFilter,
+      serviceDate: dateFilter || undefined,
+      staffId: staffFilter,
     });
-  }, [jobs, search, dateFilter, statusFilter, dueTagFilter, staffFilter, jobStaffMap]);
+
+  const pageResults = jobsPage?.results ?? [];
+  const totalCount = jobsPage?.count ?? 0;
 
   const mapFiltered = useMemo(() => {
     return jobs.filter((j) => {
@@ -1304,15 +1327,18 @@ export function IndexPage() {
     });
   }, [jobs, mapDateFrom, mapDateTo, mapStatusFilter, dueTagFilter, staffFilter, jobStaffMap, mapCallStatusFilter, mapCallsMin, mapCallsMax]);
 
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+
   const groupedByDate = useMemo(() => {
     const map = new Map<string, Job[]>();
-    for (const j of filtered) {
+    for (const j of pageResults) {
       const arr = map.get(j.service_date) ?? [];
       arr.push(j);
       map.set(j.service_date, arr);
     }
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [filtered]);
+  }, [pageResults]);
 
   async function handleSubmit(data: JobInsert, extras: { staffIds: string[]; lineItems: JobProductLine[] }) {
     let savedId: string | null;
@@ -1430,12 +1456,14 @@ export function IndexPage() {
               <StaffFilter value={staffFilter} onChange={setStaffFilter} staff={staff} />
             </div>
 
-            {isLoading ? (
+            {jobsPageLoading ? (
               <div className="text-sm text-muted-foreground py-12 text-center">Loading…</div>
             ) : groupedByDate.length === 0 ? (
               <Card className="p-12 text-center text-muted-foreground">
                 <MapPin className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                No jobs yet. Click <strong>Add Job</strong> to add one.
+                {totalCount === 0 && !debouncedSearch && statusFilter === "all" && dueTagFilter === "all" && staffFilter === "all" && !dateFilter
+                  ? <>No jobs yet. Click <strong>Add Job</strong> to add one.</>
+                  : "No jobs match your filters."}
               </Card>
             ) : (
               groupedByDate.map(([date, list]) => (
@@ -1542,6 +1570,37 @@ export function IndexPage() {
                   </div>
                 </div>
               ))
+            )}
+
+            {!jobsPageLoading && totalCount > 0 && (
+              <div className="flex items-center justify-between gap-2 flex-wrap pt-2 border-t">
+                <div className="text-xs text-muted-foreground">
+                  Showing {(currentPage - 1) * PAGE_SIZE + 1}–
+                  {Math.min(currentPage * PAGE_SIZE, totalCount)} of {totalCount} jobs
+                  {jobsPageFetching && <span className="ml-2 opacity-70">· updating…</span>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage <= 1 || jobsPageFetching}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage >= totalPages || jobsPageFetching}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
             )}
           </TabsContent>
 

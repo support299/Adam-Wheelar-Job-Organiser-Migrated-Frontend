@@ -1,6 +1,23 @@
 import { baseApi } from "./baseApi";
 import type { Job, JobInsert, JobUpdate, JobProduct, JobProductLine, JobCompletion, JobCompletionInsert } from "./types";
 
+export type Paginated<T> = {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+};
+
+export type ListJobsPagedArgs = {
+  page: number;
+  pageSize?: number;
+  search?: string;
+  status?: string;
+  dueTag?: string;
+  serviceDate?: string;
+  staffId?: string;
+};
+
 export const jobsApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
     listJobs: build.query<Job[], void>({
@@ -8,6 +25,25 @@ export const jobsApi = baseApi.injectEndpoints({
       providesTags: (result) =>
         result
           ? [...result.map(({ id }) => ({ type: "Job" as const, id })), { type: "Job", id: "LIST" }]
+          : [{ type: "Job", id: "LIST" }],
+    }),
+    listJobsPaged: build.query<Paginated<Job>, ListJobsPagedArgs>({
+      query: ({ page, pageSize = 50, search, status, dueTag, serviceDate, staffId }) => {
+        const params = new URLSearchParams();
+        params.set("page", String(page));
+        params.set("page_size", String(pageSize));
+        params.set("ordering", "service_date,service_time");
+        if (search) params.set("search", search);
+        if (status && status !== "all") params.set("status", status);
+        if (dueTag && dueTag !== "all") params.set("due_tag", dueTag);
+        if (serviceDate) params.set("service_date", serviceDate);
+        if (staffId === "unassigned") params.set("unassigned", "true");
+        else if (staffId && staffId !== "all") params.set("staff_id", staffId);
+        return `/jobs/?${params.toString()}`;
+      },
+      providesTags: (result) =>
+        result
+          ? [...result.results.map(({ id }) => ({ type: "Job" as const, id })), { type: "Job", id: "LIST" }]
           : [{ type: "Job", id: "LIST" }],
     }),
     getJob: build.query<Job, string>({
@@ -73,6 +109,7 @@ export const jobsApi = baseApi.injectEndpoints({
 
 export const {
   useListJobsQuery,
+  useListJobsPagedQuery,
   useGetJobQuery,
   useCreateJobMutation,
   useUpdateJobMutation,

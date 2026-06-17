@@ -1,8 +1,26 @@
 import { useEffect, useRef } from "react";
+import { MarkerClusterer } from "@googlemaps/markerclusterer";
 import { useGoogleMaps } from "@/hooks/use-google-maps";
 import type { Job } from "@/api/types";
 import { statusColor } from "@/lib/jobs";
 import { buildGhlContactUrl } from "@/lib/ghlContactUrl";
+
+// Above this many visible jobs we skip per-marker name labels: each label is a
+// custom OverlayView whose draw() runs on every pan/zoom, so thousands of them
+// freeze the page. Labels reappear automatically once filters shrink the set.
+const LABEL_MAX = 150;
+
+// Jobs that failed geocoding are stored at 0,0; plotting them drags the map
+// bounds across the ocean. Only plot jobs with real coordinates.
+function hasValidCoords(j: { lat: number; lng: number }): boolean {
+  return (
+    Number.isFinite(j.lat) &&
+    Number.isFinite(j.lng) &&
+    Math.abs(j.lat) <= 90 &&
+    Math.abs(j.lng) <= 180 &&
+    !(Math.abs(j.lat) < 0.0001 && Math.abs(j.lng) < 0.0001)
+  );
+}
 
 type Props = {
   jobs: Job[];
@@ -27,6 +45,7 @@ export function JobMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
+  const clustererRef = useRef<MarkerClusterer | null>(null);
   const overlaysRef = useRef<google.maps.OverlayView[]>([]);
   const markerByIdRef = useRef<Map<string, google.maps.Marker>>(new Map());
   const polyRef = useRef<google.maps.Polyline | null>(null);
@@ -35,7 +54,9 @@ export function JobMap({
   const circleRef = useRef<google.maps.Circle | null>(null);
   const radiusLabelRef = useRef<google.maps.OverlayView | null>(null);
   const drawListenersRef = useRef<google.maps.MapsEventListener[]>([]);
-  const didFitRef = useRef<boolean>(false);
+  // Signature of the last-fitted job set — lets us re-fit when the data changes
+  // (e.g. date filter) but not when the user merely focuses/selects a marker.
+  const fitSigRef = useRef<string>("");
 
   useEffect(() => {
     if (!ready || !containerRef.current || mapRef.current) return;
@@ -52,6 +73,9 @@ export function JobMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!ready || !map) return;
+    clustererRef.current?.clearMarkers();
+    clustererRef.current?.setMap(null);
+    clustererRef.current = null;
     markersRef.current.forEach((m) => m.setMap(null));
     markersRef.current = [];
     overlaysRef.current.forEach((o) => o.setMap(null));
@@ -61,9 +85,14 @@ export function JobMap({
     polyRef.current = null;
     originMarkerRef.current?.setMap(null);
     originMarkerRef.current = null;
-    if (jobs.length === 0) return;
+    const plottable = jobs.filter(hasValidCoords);
+    if (plottable.length === 0) return;
+    // Cluster only in plain map mode. In route mode (Daily Planner) markers are
+    // numbered stops joined by a polyline, so they must stay individually visible.
+    const useCluster = !routeOrder;
+    const renderLabels = !!showLabels && plottable.length <= LABEL_MAX;
     const bounds = new google.maps.LatLngBounds();
-    const markers = jobs.map((job) => {
+    const markers = plottable.map((job) => {
       const isSelected = selectedIds?.has(job.id);
       const inRoute = routeOrder?.findIndex((j) => j.id === job.id) ?? -1;
       const label = inRoute >= 0 ? String(inRoute + 1) : "";
@@ -87,7 +116,7 @@ export function JobMap({
       });
       bounds.extend({ lat: job.lat, lng: job.lng });
       markerByIdRef.current.set(job.id, marker);
-      if (showLabels) {
+      if (renderLabels) {
         const overlay = createLabelOverlay(
           { lat: job.lat, lng: job.lng },
           `<div style="font-weight:600;">${escapeHtml(job.name)}</div>
@@ -99,7 +128,11 @@ export function JobMap({
       return marker;
     });
     markersRef.current = markers;
-    markers.forEach((m) => m.setMap(map));
+    if (useCluster) {
+      clustererRef.current = new MarkerClusterer({ map, markers });
+    } else {
+      markers.forEach((m) => m.setMap(map));
+    }
     if (originPoint) {
       originMarkerRef.current = new google.maps.Marker({
         position: { lat: originPoint.lat, lng: originPoint.lng },
@@ -134,25 +167,27 @@ export function JobMap({
         });
       }
     }
-    if (!bounds.isEmpty() && !didFitRef.current) {
+    const fitSig = `${plottable.length}:${plottable[0]?.id ?? ""}:${plottable[plottable.length - 1]?.id ?? ""}`;
+    if (!bounds.isEmpty() && fitSig !== fitSigRef.current) {
       map.fitBounds(bounds, 60);
-      if (jobs.length === 1) {
+      if (plottable.length === 1) {
         google.maps.event.addListenerOnce(map, "idle", () => map.setZoom(13));
       }
-      didFitRef.current = true;
+      fitSigRef.current = fitSig;
     }
   }, [ready, jobs, routeOrder, selectedIds, onMarkerClick, showLabels, originPoint, routeReturnsToOrigin]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!ready || !map || !focusedId) return;
-    const marker = markerByIdRef.current.get(focusedId);
     const job = jobs.find((j) => j.id === focusedId);
-    if (!marker || !job) return;
+    if (!job) return;
     map.panTo({ lat: job.lat, lng: job.lng });
     if ((map.getZoom() ?? 0) < 13) map.setZoom(14);
+    // Open by position (not anchor): the marker may be hidden inside a cluster.
     infoRef.current?.setContent(buildInfoHtml(job));
-    infoRef.current?.open({ map, anchor: marker });
+    infoRef.current?.setPosition({ lat: job.lat, lng: job.lng });
+    infoRef.current?.open({ map });
   }, [focusedId, ready, jobs]);
 
   useEffect(() => {
