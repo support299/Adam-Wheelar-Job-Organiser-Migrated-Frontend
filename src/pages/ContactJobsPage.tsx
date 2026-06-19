@@ -116,6 +116,7 @@ export function ContactJobsPage() {
       const wasCompleted = isDone(editing?.status);
       const nowCompleted = isDone(data.status);
       let savedId: string | null = null;
+      let rolledToDate: string | null = null;
       if (editing) {
         if (!wasCompleted && nowCompleted) {
           try {
@@ -142,23 +143,21 @@ export function ContactJobsPage() {
           }
         }
         if (!wasCompleted && nowCompleted && data.is_recurring && data.frequency) {
-          const nextDate = addFrequency(data.service_date, data.frequency as RecurrenceFrequency);
-          await updateJob({ id: editing.id, body: { ...data, service_date: nextDate, status: "pending", service_type: "servicing", sale_date: null } }).unwrap();
-          toast.success(`Recurring job rolled to ${nextDate}`);
+          rolledToDate = addFrequency(data.service_date, data.frequency as RecurrenceFrequency);
+          await updateJob({ id: editing.id, body: { ...data, service_date: rolledToDate, status: "pending", service_type: "servicing", sale_date: null } }).unwrap();
         } else {
           await updateJob({ id: editing.id, body: data }).unwrap();
-          toast.success("Job updated");
         }
         savedId = editing.id;
       } else {
         const created = await createJob({ ...data, ghl_contact_id: ghlContactId ?? null }).unwrap();
         savedId = created.id;
-        toast.success("Sale recorded");
       }
       if (savedId) {
         await setJobStaff({ jobId: savedId, staffIds: extras.staffIds }).unwrap();
         await setJobProducts({ jobId: savedId, lines: extras.lineItems }).unwrap();
       }
+      toast.success(rolledToDate ? `Recurring job rolled to ${rolledToDate}` : editing ? "Job updated" : "Sale recorded");
       setEditing(null);
       setDialogOpen(false);
     } catch (e: unknown) {

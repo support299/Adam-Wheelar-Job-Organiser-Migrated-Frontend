@@ -64,9 +64,11 @@ export const jobsApi = baseApi.injectEndpoints({
     }),
     getJobProducts: build.query<JobProduct[], string>({
       query: (jobId) => `/jobs/${jobId}/products/`,
+      providesTags: (_r, _e, jobId) => [{ type: "Job", id: `PRODUCTS-${jobId}` }],
     }),
     listAllJobProducts: build.query<JobProduct[], void>({
       query: () => "/jobs/products/",
+      providesTags: [{ type: "Job", id: "ALL-PRODUCTS" }],
     }),
     setJobProducts: build.mutation<void, { jobId: string; lines: JobProductLine[] }>({
       query: ({ jobId, lines }) => ({
@@ -74,9 +76,14 @@ export const jobsApi = baseApi.injectEndpoints({
         method: "PUT",
         body: { lines },
       }),
+      invalidatesTags: (_r, _e, { jobId }) => [
+        { type: "Job", id: `PRODUCTS-${jobId}` },
+        { type: "Job", id: "ALL-PRODUCTS" },
+      ],
     }),
     getJobStaff: build.query<{ staff_ids: string[] }, string>({
       query: (jobId) => `/jobs/${jobId}/staff/`,
+      providesTags: (_r, _e, jobId) => [{ type: "Job", id: `STAFF-${jobId}` }],
     }),
     setJobStaff: build.mutation<void, { jobId: string; staffIds: string[] }>({
       query: ({ jobId, staffIds }) => ({
@@ -84,6 +91,7 @@ export const jobsApi = baseApi.injectEndpoints({
         method: "PUT",
         body: { staff_ids: staffIds },
       }),
+      invalidatesTags: (_r, _e, { jobId }) => [{ type: "Job", id: `STAFF-${jobId}` }],
     }),
     listJobCompletions: build.query<JobCompletion[], void>({
       query: () => "/completions/?ordering=-completed_at",

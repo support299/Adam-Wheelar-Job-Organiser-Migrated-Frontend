@@ -123,7 +123,11 @@ export function JobFormDialog({
 
   useEffect(() => {
     if (!open) return;
-    if (existingProducts) {
+    if (!job) {
+      setLineItems([]);
+      return;
+    }
+    if (existingProducts !== undefined) {
       setLineItems(
         existingProducts.map((l) => ({
           product_id: l.product_id,
@@ -131,10 +135,8 @@ export function JobFormDialog({
           unit_price: Number(l.unit_price),
         })),
       );
-    } else if (!job) {
-      setLineItems([]);
     }
-  }, [open, existingProducts, job]);
+  }, [open, existingProducts, job?.id]);
 
   useEffect(() => {
     if (open) setActiveTab("details");
@@ -213,10 +215,6 @@ export function JobFormDialog({
     }
     if (lineItems.length === 0) {
       toast.error("Please add at least one product before saving");
-      return;
-    }
-    if (form.status !== "pending" && staffIds.length === 0) {
-      toast.error("Assign at least one staff member to the job");
       return;
     }
     try {
