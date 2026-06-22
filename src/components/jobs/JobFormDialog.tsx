@@ -66,6 +66,7 @@ type Props = {
   job?: Job | null;
   defaultGhlContactId?: string | null;
   defaultServiceType?: "installation" | "servicing";
+  initialTab?: "details" | "activity";
   onSubmit: (
     data: JobInsert,
     extras: { staffIds: string[]; lineItems: JobProductLine[] },
@@ -99,6 +100,7 @@ export function JobFormDialog({
   job,
   defaultGhlContactId,
   defaultServiceType,
+  initialTab,
   onSubmit,
 }: Props) {
   const [form, setForm] = useState<JobInsert>(empty);
@@ -139,8 +141,8 @@ export function JobFormDialog({
   }, [open, existingProducts, job?.id]);
 
   useEffect(() => {
-    if (open) setActiveTab("details");
-  }, [open]);
+    if (open) setActiveTab(initialTab ?? "details");
+  }, [open, initialTab]);
 
   useEffect(() => {
     if (open) {

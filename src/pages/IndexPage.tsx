@@ -15,7 +15,7 @@ import {
 import {
   Plus, Pencil, Trash2, MapPin, Sparkles, Search, ArrowUp, ArrowDown,
   CalendarIcon, CalendarClock, Settings as SettingsIcon, Users, History,
-  Circle as CircleIcon, ExternalLink, Phone, Copy, BarChart3,
+  Circle as CircleIcon, ExternalLink, Phone, Copy, BarChart3, ClipboardList,
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -600,6 +600,7 @@ function MapViewPanel({
   focusedJobId,
   setFocusedJobId,
   onEditJob,
+  onEditJobActivity,
 }: {
   jobs: Job[];
   allJobs: Job[];
@@ -626,6 +627,7 @@ function MapViewPanel({
   focusedJobId: string | null;
   setFocusedJobId: (id: string | null) => void;
   onEditJob: (job: Job) => void;
+  onEditJobActivity: (job: Job) => void;
 }) {
   const [drawCircleEnabled, setDrawCircleEnabled] = useState(false);
   const [circle, setCircle] = useState<{ center: { lat: number; lng: number }; radiusMeters: number } | null>(null);
@@ -745,12 +747,30 @@ function MapViewPanel({
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-medium truncate">{j.name}</span>
-                      <span className="shrink-0 text-muted-foreground">${Number(j.service_value).toFixed(0)}</span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-muted-foreground">${Number(j.service_value).toFixed(0)}</span>
+                        <button
+                          type="button"
+                          title="Open Activity"
+                          className="ml-1 inline-flex items-center text-muted-foreground hover:text-foreground"
+                          onClick={(e) => { e.stopPropagation(); setFocusedJobId(j.id); onEditJobActivity(j); }}
+                        >
+                          <ClipboardList className="h-3 w-3" />
+                        </button>
+                      </div>
                     </div>
                     <div className="text-muted-foreground flex items-center gap-2">
                       <span>{j.service_time.slice(0, 5)}</span>
                       <span>·</span>
                       <span className="truncate">{j.service_date}</span>
+                      <span>·</span>
+                      <span className={
+                        j.call_status === "connected" ? "text-green-600 font-medium" :
+                        j.call_status === "not_connected" ? "text-red-500 font-medium" :
+                        "text-muted-foreground"
+                      }>
+                        {j.call_status === "connected" ? "Connected" : j.call_status === "not_connected" ? "Not Connected" : "Not Called"}
+                      </span>
                     </div>
                     {j.phone && (
                       <div className="text-muted-foreground flex items-center gap-1 mt-0.5">
@@ -1266,6 +1286,7 @@ export function IndexPage() {
   const [mapSearch, setMapSearch] = useState("");
   const [mapStatusFilter, setMapStatusFilter] = useState("pending");
   const [focusedJobId, setFocusedJobId] = useState<string | null>(null);
+  const [editingInitialTab, setEditingInitialTab] = useState<"details" | "activity">("details");
   // Default the map to the current month (1st → last day) so it doesn't try to
   // plot every job at once.
   const [mapDateFrom, setMapDateFrom] = useState(() =>
@@ -1630,7 +1651,8 @@ export function IndexPage() {
               setMapSearch={setMapSearch}
               focusedJobId={focusedJobId}
               setFocusedJobId={setFocusedJobId}
-              onEditJob={(j) => { setEditing(j); setDialogOpen(true); }}
+              onEditJob={(j) => { setEditing(j); setEditingInitialTab("details"); setDialogOpen(true); }}
+              onEditJobActivity={(j) => { setEditing(j); setEditingInitialTab("activity"); setDialogOpen(true); }}
             />
           </TabsContent>
 
@@ -1646,6 +1668,7 @@ export function IndexPage() {
         onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditing(null); }}
         job={editing}
         defaultServiceType="servicing"
+        initialTab={editingInitialTab}
         onSubmit={handleSubmit}
       />
     </div>
