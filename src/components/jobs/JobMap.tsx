@@ -183,7 +183,6 @@ export function JobMap({
     const job = jobs.find((j) => j.id === focusedId);
     if (!job) return;
     map.panTo({ lat: job.lat, lng: job.lng });
-    if ((map.getZoom() ?? 0) < 13) map.setZoom(14);
     // Open by position (not anchor): the marker may be hidden inside a cluster.
     infoRef.current?.setContent(buildInfoHtml(job));
     infoRef.current?.setPosition({ lat: job.lat, lng: job.lng });
@@ -324,7 +323,7 @@ function createLabelOverlay(position: { lat: number; lng: number }, html: string
       div.style.cssText = "position:absolute;transform:translate(-50%,-140%);background:rgba(17,24,39,0.92);color:#fff;padding:3px 6px;border-radius:6px;font-size:11px;line-height:1.25;font-family:system-ui,sans-serif;white-space:nowrap;pointer-events:none;box-shadow:0 2px 6px rgba(0,0,0,0.25);";
       div.innerHTML = html;
       this.div = div;
-      this.getPanes()!.floatPane.appendChild(div);
+      this.getPanes()!.markerLayer.appendChild(div);
     }
     draw() {
       if (!this.div) return;
