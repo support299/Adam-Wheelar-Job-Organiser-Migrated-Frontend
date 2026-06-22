@@ -569,17 +569,6 @@ export function JobFormDialog({
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-1.5">
-              <Label>Calls Made</Label>
-              <Input
-                type="number"
-                min={0}
-                step="1"
-                className="w-24"
-                value={Number(form.calls_made ?? 0)}
-                onChange={(e) => setForm({ ...form, calls_made: parseInt(e.target.value, 10) || 0 })}
-              />
-            </div>
           </div>
 
           {/* Staff */}

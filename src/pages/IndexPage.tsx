@@ -15,7 +15,7 @@ import {
 import {
   Plus, Pencil, Trash2, MapPin, Sparkles, Search, ArrowUp, ArrowDown,
   CalendarIcon, CalendarClock, Settings as SettingsIcon, Users, History,
-  Circle as CircleIcon, ExternalLink, Phone, Copy, BarChart3, ClipboardList,
+  Circle as CircleIcon, ExternalLink, Phone, PhoneCall, Copy, BarChart3, Clock,
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -41,6 +41,7 @@ import {
   useSetJobProductsMutation,
   useCreateJobCompletionMutation,
 } from "@/api/jobsApi";
+import { useListContactNotesByJobIdQuery } from "@/api/contactsApi";
 import { useListStaffQuery, useListJobStaffQuery } from "@/api/staffApi";
 import { useListBaseLocationsQuery } from "@/api/locationsApi";
 import { useGetDistanceMatrixMutation } from "@/api/mapsApi";
@@ -201,9 +202,9 @@ function MapCalendar({
   circle: { center: { lat: number; lng: number }; radiusMeters: number } | null;
   onEditJob: (job: Job) => void;
 }) {
-  const [view, setView] = useState<CalView>("month");
+  const [view, setView] = useState<CalView>("week");
   const [anchor, setAnchor] = useState<Date>(() => new Date());
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("scheduled");
   const [staffFilter, setStaffFilter] = useState<string>("all");
   const [useCircle, setUseCircle] = useState(false);
   const [slotPick, setSlotPick] = useState<{ date: Date; hour: number } | null>(null);
@@ -572,6 +573,21 @@ function AvailableStaffDialog({
   );
 }
 
+function LastCallBadge({ jobId }: { jobId: string }) {
+  const { data: notes = [] } = useListContactNotesByJobIdQuery(jobId);
+  if (notes.length === 0) return null;
+  const latest = notes.reduce((a, b) => (a.created_at > b.created_at ? a : b));
+  const when = new Date(latest.created_at).toLocaleDateString(undefined, {
+    month: "short", day: "numeric", year: "numeric",
+  });
+  return (
+    <div className="text-muted-foreground flex items-center gap-1 mt-0.5">
+      <Clock className="h-3 w-3 shrink-0" />
+      <span>Last called {when}</span>
+    </div>
+  );
+}
+
 // ─── MapViewPanel ────────────────────────────────────────────────────────────
 
 function MapViewPanel({
@@ -595,8 +611,6 @@ function MapViewPanel({
   setCallsMax,
   staff,
   jobStaffMap,
-  mapSearch,
-  setMapSearch,
   focusedJobId,
   setFocusedJobId,
   onEditJob,
@@ -622,13 +636,12 @@ function MapViewPanel({
   setCallsMax: (v: string) => void;
   staff: Staff[];
   jobStaffMap: Record<string, string[]>;
-  mapSearch: string;
-  setMapSearch: (v: string) => void;
   focusedJobId: string | null;
   setFocusedJobId: (id: string | null) => void;
   onEditJob: (job: Job) => void;
   onEditJobActivity: (job: Job) => void;
 }) {
+  const [mapSearch, setMapSearch] = useState("");
   const [drawCircleEnabled, setDrawCircleEnabled] = useState(false);
   const [circle, setCircle] = useState<{ center: { lat: number; lng: number }; radiusMeters: number } | null>(null);
 
@@ -751,11 +764,12 @@ function MapViewPanel({
                         <span className="text-muted-foreground">${Number(j.service_value).toFixed(0)}</span>
                         <button
                           type="button"
-                          title="Open Activity"
-                          className="ml-1 inline-flex items-center text-muted-foreground hover:text-foreground"
+                          title="Log call"
+                          className="ml-1 inline-flex items-center gap-1 cursor-pointer rounded px-1 py-0.5 text-blue-600 hover:bg-blue-50 hover:text-blue-700 transition-colors"
                           onClick={(e) => { e.stopPropagation(); setFocusedJobId(j.id); onEditJobActivity(j); }}
                         >
-                          <ClipboardList className="h-3 w-3" />
+                          <PhoneCall className="h-3 w-3" />
+                          <span className="text-[10px] font-medium">Log call</span>
                         </button>
                       </div>
                     </div>
@@ -801,6 +815,7 @@ function MapViewPanel({
                         </div>
                       );
                     })()}
+                    <LastCallBadge jobId={j.id} />
                   </div>
                 );
               })
@@ -1283,7 +1298,6 @@ export function IndexPage() {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
     return () => clearTimeout(t);
   }, [search]);
-  const [mapSearch, setMapSearch] = useState("");
   const [mapStatusFilter, setMapStatusFilter] = useState("pending");
   const [focusedJobId, setFocusedJobId] = useState<string | null>(null);
   const [editingInitialTab, setEditingInitialTab] = useState<"details" | "activity">("details");
@@ -1647,8 +1661,6 @@ export function IndexPage() {
               setCallsMax={setMapCallsMax}
               staff={staff}
               jobStaffMap={jobStaffMap}
-              mapSearch={mapSearch}
-              setMapSearch={setMapSearch}
               focusedJobId={focusedJobId}
               setFocusedJobId={setFocusedJobId}
               onEditJob={(j) => { setEditing(j); setEditingInitialTab("details"); setDialogOpen(true); }}

@@ -87,10 +87,10 @@ export function JobActivity({
       <div className="flex items-center justify-between">
         <div>
           <Label>Record Activity</Label>
-          <p className="text-xs text-muted-foreground">Notes specific to this job.</p>
+          <p className="text-xs text-muted-foreground">Calls specific to this job.</p>
         </div>
         <Button type="button" size="sm" variant="outline" onClick={openNew}>
-          <Plus className="h-4 w-4 mr-1" /> Add note
+          <Plus className="h-4 w-4 mr-1" /> Add call
         </Button>
       </div>
 
@@ -98,7 +98,7 @@ export function JobActivity({
         <Card className="p-4 text-xs text-muted-foreground text-center">Loading…</Card>
       ) : notes.length === 0 ? (
         <Card className="p-4 text-xs text-muted-foreground text-center">
-          No notes for this job yet.
+          No calls logged for this job yet.
         </Card>
       ) : (
         <div className="grid gap-2">
@@ -162,7 +162,7 @@ export function JobActivity({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit note" : "Add note"}</DialogTitle>
+            <DialogTitle>{editing ? "Edit call" : "Add call"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
