@@ -44,7 +44,7 @@ export function ContactJobsPage() {
   const { ghlContactId } = useParams<{ ghlContactId: string }>();
 
   const { data: allContacts = [] } = useListGhlContactsQuery();
-  const { data: allJobs = [], isLoading } = useListJobsQuery();
+  const { data: allJobs = [], isLoading } = useListJobsQuery(ghlContactId ? { ghl_contact_id: ghlContactId } : undefined);
   const { data: products = [] } = useListProductsQuery();
   const { data: staff = [] } = useListStaffQuery();
   const { data: allJobStaff = [] } = useListJobStaffQuery();
@@ -68,7 +68,7 @@ export function ContactJobsPage() {
 
   const contact = useMemo(() => allContacts.find((c) => c.id === ghlContactId) ?? null, [allContacts, ghlContactId]);
 
-  const jobs = useMemo(() => allJobs.filter((j) => j.ghl_contact_id === ghlContactId), [allJobs, ghlContactId]);
+  const jobs = allJobs;
 
   const jobStaffMap = useMemo(() => {
     const m: Record<string, string[]> = {};

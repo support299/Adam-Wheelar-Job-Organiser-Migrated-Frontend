@@ -20,8 +20,12 @@ export type ListJobsPagedArgs = {
 
 export const jobsApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
-    listJobs: build.query<Job[], void>({
-      query: () => "/jobs/?ordering=service_date,service_time",
+    listJobs: build.query<Job[], { ghl_contact_id?: string } | void>({
+      query: (args) => {
+        const params = new URLSearchParams({ ordering: "service_date,service_time" });
+        if (args?.ghl_contact_id) params.set("ghl_contact_id", args.ghl_contact_id);
+        return `/jobs/?${params.toString()}`;
+      },
       providesTags: (result) =>
         result
           ? [...result.map(({ id }) => ({ type: "Job" as const, id })), { type: "Job", id: "LIST" }]
