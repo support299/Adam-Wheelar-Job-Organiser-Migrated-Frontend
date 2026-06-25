@@ -42,7 +42,7 @@ import {
   useCreateJobCompletionMutation,
 } from "@/api/jobsApi";
 import { useListContactNotesByJobIdQuery } from "@/api/contactsApi";
-import { useListStaffQuery, useListJobStaffQuery } from "@/api/staffApi";
+import { useListStaffQuery } from "@/api/staffApi";
 import { useListBaseLocationsQuery } from "@/api/locationsApi";
 import { useGetDistanceMatrixMutation } from "@/api/mapsApi";
 import { useCreatePlanMutation } from "@/api/plansApi";
@@ -1272,9 +1272,9 @@ function DailyPlanner({
 // ─── IndexPage ───────────────────────────────────────────────────────────────
 
 export function IndexPage() {
-  const { data: jobs = [] } = useListJobsQuery();
+  const [activeMainTab, setActiveMainTab] = useState("jobs");
+  const { data: jobs = [] } = useListJobsQuery(undefined, { skip: activeMainTab === "jobs" });
   const { data: staff = [] } = useListStaffQuery();
-  const { data: jobStaffRows = [], refetch: refetchJobStaff } = useListJobStaffQuery();
   const [createJob] = useCreateJobMutation();
   const [updateJob] = useUpdateJobMutation();
   const [deleteJob] = useDeleteJobMutation();
@@ -1311,14 +1311,6 @@ export function IndexPage() {
   const [mapCallsMin, setMapCallsMin] = useState("");
   const [mapCallsMax, setMapCallsMax] = useState("");
 
-  const jobStaffMap = useMemo(() => {
-    const map: Record<string, string[]> = {};
-    for (const r of jobStaffRows) {
-      (map[r.job_id] ??= []).push(r.staff_id);
-    }
-    return map;
-  }, [jobStaffRows]);
-
   // Reset to the first page whenever the Jobs List filters change.
   useEffect(() => {
     setPage(1);
@@ -1338,6 +1330,14 @@ export function IndexPage() {
 
   const pageResults = jobsPage?.results ?? [];
   const totalCount = jobsPage?.count ?? 0;
+
+  const jobStaffMap = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    for (const j of [...pageResults, ...jobs]) {
+      if (j.staff_ids?.length) map[j.id] = j.staff_ids;
+    }
+    return map;
+  }, [pageResults, jobs]);
 
   const mapFiltered = useMemo(() => {
     return jobs.filter((j) => {
@@ -1419,7 +1419,6 @@ export function IndexPage() {
     if (savedId) {
       await setJobStaff({ jobId: savedId, staffIds: extras.staffIds }).unwrap();
       await setJobProducts({ jobId: savedId, lines: extras.lineItems }).unwrap();
-      void refetchJobStaff();
     }
     if (rolledToDate) {
       toast.success(`Recurring job rolled to ${rolledToDate}`);
@@ -1469,7 +1468,7 @@ export function IndexPage() {
       </header>
 
       <main className="max-w-[1700px] mx-auto px-3 sm:px-4 py-4 sm:py-6">
-        <Tabs defaultValue="jobs" className="w-full">
+        <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
           <TabsList className="mb-4">
             <TabsTrigger value="jobs">Jobs List</TabsTrigger>
             <TabsTrigger value="map">Map View</TabsTrigger>

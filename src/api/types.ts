@@ -20,6 +20,7 @@ export type Job = {
   sale_date: string | null;
   call_status: string | null;
   calls_made: number;
+  staff_ids: string[];
   created_at: string;
   updated_at: string;
 };

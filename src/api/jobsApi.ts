@@ -95,7 +95,10 @@ export const jobsApi = baseApi.injectEndpoints({
         method: "PUT",
         body: { staff_ids: staffIds },
       }),
-      invalidatesTags: (_r, _e, { jobId }) => [{ type: "Job", id: `STAFF-${jobId}` }],
+      invalidatesTags: (_r, _e, { jobId }) => [
+        { type: "Job", id: `STAFF-${jobId}` },
+        { type: "Job", id: jobId },
+      ],
     }),
     listJobCompletions: build.query<JobCompletion[], void>({
       query: () => "/completions/?ordering=-completed_at",
