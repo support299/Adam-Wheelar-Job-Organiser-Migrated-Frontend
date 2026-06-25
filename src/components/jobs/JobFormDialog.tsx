@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -38,7 +38,7 @@ import { toast } from "sonner";
 import { useListStaffQuery } from "@/api/staffApi";
 import { useListProductsQuery } from "@/api/productsApi";
 import { useListGhlContactsQuery } from "@/api/contactsApi";
-import { useGetJobStaffQuery, useGetJobProductsQuery } from "@/api/jobsApi";
+import { useGetJobStaffQuery, useGetJobProductsQuery, useListJobsQuery } from "@/api/jobsApi";
 import type { Job, JobInsert, JobProductLine, GhlContact } from "@/api/types";
 
 function parseCoordsFromUrl(input: string): { lat: number; lng: number } | null {
@@ -117,6 +117,23 @@ export function JobFormDialog({
   const { data: contacts = [] } = useListGhlContactsQuery(undefined, { skip: !open });
   const { data: existingStaff } = useGetJobStaffQuery(job?.id ?? "", { skip: !open || !job });
   const { data: existingProducts } = useGetJobProductsQuery(job?.id ?? "", { skip: !open || !job });
+  const { data: contactJobs = [] } = useListJobsQuery(
+    form.ghl_contact_id ? { ghl_contact_id: form.ghl_contact_id } : undefined,
+    { skip: !open || !!job || !form.ghl_contact_id },
+  );
+
+  const previousAddresses = useMemo(() => {
+    const seen = new Set<string>();
+    return [...contactJobs]
+      .filter((j) => j.address && j.lat && j.lng)
+      .reverse()
+      .filter((j) => {
+        const key = j.address.trim().toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  }, [contactJobs]);
 
   useEffect(() => {
     if (!open) return;
@@ -381,6 +398,28 @@ export function JobFormDialog({
                   </p>
                 ) : (
                   <p className="text-xs text-muted-foreground">Pick a suggestion to capture coordinates.</p>
+                )}
+                {previousAddresses.length > 0 && !form.address && (
+                  <div className="grid gap-1.5">
+                    <p className="text-xs text-muted-foreground">Previous addresses for this contact:</p>
+                    <div className="flex flex-col gap-1">
+                      {previousAddresses.map((j) => (
+                        <Button
+                          key={j.id}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="justify-start text-left h-auto py-1.5 px-3 text-xs"
+                          onClick={() => {
+                            setForm((f) => ({ ...f, address: j.address, lat: j.lat, lng: j.lng }));
+                            toast.success("Address filled from previous job");
+                          }}
+                        >
+                          {j.address}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </TabsContent>
               <TabsContent value="manual" className="space-y-3 mt-3">
