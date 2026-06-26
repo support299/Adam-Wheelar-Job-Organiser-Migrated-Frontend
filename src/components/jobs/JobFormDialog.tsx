@@ -94,6 +94,9 @@ const empty: JobInsert = {
   calls_made: 0,
   color: null,
   duration: 60,
+  parent_job_id: null,
+  occurrence_index: null,
+  occurrences: 1,
 };
 
 export function JobFormDialog({
@@ -188,6 +191,9 @@ export function JobFormDialog({
               calls_made: job.calls_made ?? 0,
               color: job.color ?? null,
               duration: job.duration ?? 60,
+              parent_job_id: job.parent_job_id ?? null,
+              occurrence_index: job.occurrence_index ?? null,
+              occurrences: job.series_count ?? 1,
             }
           : {
               ...empty,
@@ -235,6 +241,18 @@ export function JobFormDialog({
     if (form.is_recurring && !form.frequency) {
       toast.error("Please select a repeat frequency for recurring jobs");
       return;
+    }
+    if (form.is_recurring) {
+      const occ = form.occurrences ?? 1;
+      const minOcc = job?.series_count ?? 1;
+      if (!occ || occ < minOcc) {
+        toast.error(
+          job?.series_count
+            ? `Occurrences must be at least ${minOcc} (current series size)`
+            : "Occurrences must be at least 1",
+        );
+        return;
+      }
     }
     if (lineItems.length === 0) {
       toast.error("Please add at least one product before saving");
@@ -575,19 +593,49 @@ export function JobFormDialog({
               </TabsList>
             </Tabs>
             {form.is_recurring && (
-              <div className="grid gap-1.5 mt-2">
-                <Label>Repeat Frequency</Label>
-                <Select
-                  value={(form.frequency as RecurrenceFrequency | null) ?? undefined}
-                  onValueChange={(v) => setForm({ ...form, frequency: v as RecurrenceFrequency })}
-                >
-                  <SelectTrigger><SelectValue placeholder="Select frequency" /></SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(FREQUENCY_LABELS).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>{label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid gap-3 mt-2">
+                <div className="grid gap-1.5">
+                  <Label>Repeat Frequency</Label>
+                  <Select
+                    value={(form.frequency as RecurrenceFrequency | null) ?? undefined}
+                    onValueChange={(v) => setForm({ ...form, frequency: v as RecurrenceFrequency })}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select frequency" /></SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(FREQUENCY_LABELS).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>{label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {(!job || (!job.parent_job_id && job.occurrence_index === 1)) && (
+                  <div className="grid gap-1.5">
+                    <Label>Occurrences</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={form.occurrences ?? ""}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        setForm({ ...form, occurrences: !isNaN(val) && val >= 1 ? val : undefined });
+                      }}
+                    />
+                    {job ? (
+                      <p className="text-xs text-muted-foreground">
+                        Series has {job.series_count} occurrence{job.series_count === 1 ? "" : "s"}. Enter a higher number to add more.
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        How many jobs to create in this series (1 = no pre-generation).
+                      </p>
+                    )}
+                  </div>
+                )}
+                {job && job.parent_job_id && (
+                  <p className="text-xs text-muted-foreground">
+                    Occurrence {job.occurrence_index} — part of a recurring series. Edit occurrences on the parent job.
+                  </p>
+                )}
               </div>
             )}
           </div>

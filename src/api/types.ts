@@ -22,12 +22,18 @@ export type Job = {
   calls_made: number;
   color: string | null;
   duration: number;
+  parent_job_id: string | null;
+  occurrence_index: number | null;
+  series_count: number | null;
+  child_job_ids?: string[];
   staff_ids: string[];
   created_at: string;
   updated_at: string;
 };
 
-export type JobInsert = Omit<Job, "id" | "created_at" | "updated_at" | "staff_ids">;
+export type JobInsert = Omit<Job, "id" | "created_at" | "updated_at" | "staff_ids"> & {
+  occurrences?: number;
+};
 export type JobUpdate = Partial<JobInsert>;
 
 export type JobProduct = {

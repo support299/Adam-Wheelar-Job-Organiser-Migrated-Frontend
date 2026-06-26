@@ -1344,7 +1344,7 @@ export function IndexPage() {
   }, [debouncedSearch, dateFilter, statusFilter, dueTagFilter, staffFilter]);
 
   // Jobs List is paginated server-side so the browser only fetches one page.
-  const { data: jobsPage, isLoading: jobsPageLoading, isFetching: jobsPageFetching } =
+  const { data: jobsPage, isLoading: jobsPageLoading, isFetching: jobsPageFetching, refetch: refetchJobsPage } =
     useListJobsPagedQuery({
       page,
       pageSize: PAGE_SIZE,
@@ -1406,6 +1406,7 @@ export function IndexPage() {
     let savedId: string | null = null;
     let rolledToDate: string | null = null;
     const isDone = (s: string) => s === "completed" || s === "skip";
+    let seriesIds: string[] = [];
     if (editing) {
       const wasCompleted = isDone(editing.status);
       const nowCompleted = isDone(data.status);
@@ -1432,26 +1433,33 @@ export function IndexPage() {
           toast.error(e instanceof Error ? `Completion not recorded: ${e.message}` : "Completion not recorded");
         }
       }
-      if (!wasCompleted && nowCompleted && data.is_recurring && data.frequency) {
+      const isSeriesJob = !!(editing.parent_job_id || editing.occurrence_index);
+      if (!wasCompleted && nowCompleted && data.is_recurring && data.frequency && !isSeriesJob) {
         rolledToDate = addFrequency(data.service_date, data.frequency as RecurrenceFrequency);
         await updateJob({ id: editing.id, body: { ...data, service_date: rolledToDate, status: "pending", service_type: "servicing", sale_date: null } }).unwrap();
       } else {
         await updateJob({ id: editing.id, body: data }).unwrap();
       }
       savedId = editing.id;
+      seriesIds = [editing.id];
     } else {
       const created = await createJob(data).unwrap();
       savedId = created.id;
+      seriesIds = [created.id, ...(created.child_job_ids ?? [])];
     }
-    if (savedId) {
-      await setJobStaff({ jobId: savedId, staffIds: extras.staffIds }).unwrap();
-      await setJobProducts({ jobId: savedId, lines: extras.lineItems }).unwrap();
+    for (const jobId of seriesIds) {
+      await setJobStaff({ jobId, staffIds: extras.staffIds }).unwrap();
+      await setJobProducts({ jobId, lines: extras.lineItems }).unwrap();
     }
     if (rolledToDate) {
       toast.success(`Recurring job rolled to ${rolledToDate}`);
     } else {
       toast.success(editing ? "Job updated" : "Job created");
     }
+    if (!editing) {
+      setPage(1);
+    }
+    void refetchJobsPage();
     setEditing(null);
     setDialogOpen(false);
   }
