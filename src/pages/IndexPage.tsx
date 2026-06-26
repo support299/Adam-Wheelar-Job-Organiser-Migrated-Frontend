@@ -116,6 +116,10 @@ function parseHour(time: string): number {
   const n = parseInt(time.slice(0, 2), 10);
   return Number.isFinite(n) ? n : 0;
 }
+function parseMinutes(time: string): number {
+  const n = parseInt(time.slice(3, 5), 10);
+  return Number.isFinite(n) ? n : 0;
+}
 function formatHour(h: number): string {
   const period = h >= 12 ? "PM" : "AM";
   const hh = h % 12 === 0 ? 12 : h % 12;
@@ -356,10 +360,15 @@ function MonthGrid({
               <div className="space-y-0.5">
                 {items.slice(0, 3).map((j) => (
                   <button key={j.id} type="button" onClick={() => onEditJob(j)}
-                    className="w-full text-left text-[10px] leading-tight px-1 py-0.5 rounded bg-primary/10 hover:bg-primary/20 truncate"
+                    className="w-full text-left text-[10px] leading-tight px-1 py-0.5 rounded truncate"
+                    style={j.color
+                      ? { backgroundColor: j.color + "26", color: j.color }
+                      : undefined}
                     title={`${j.service_time.slice(0, 5)} ${j.name}`}
                   >
-                    <span className="text-primary font-medium">{j.service_time.slice(0, 5)}</span>{" "}
+                    <span className={j.color ? "" : "text-primary"} style={j.color ? { color: j.color } : undefined}>
+                      <span className="font-medium">{j.service_time.slice(0, 5)}</span>{" "}
+                    </span>
                     <span className="truncate">{j.name}</span>
                   </button>
                 ))}
@@ -418,16 +427,25 @@ function WeekGrid({
                       if ((e.target as HTMLElement).closest("[data-job-btn]")) return;
                       onSlotClick(d, h);
                     }}
-                    className="relative border-r last:border-r-0 border-b h-12 hover:bg-accent/40 cursor-pointer p-0.5 space-y-0.5 overflow-hidden"
+                    className="relative border-r last:border-r-0 border-b h-12 hover:bg-accent/40 cursor-pointer overflow-visible"
                   >
-                    {items.map((j) => (
-                      <button key={j.id} data-job-btn type="button" onClick={(ev) => { ev.stopPropagation(); onEditJob(j); }}
-                        className="w-full text-left text-[10px] leading-tight px-1 py-0.5 rounded bg-primary/15 hover:bg-primary/25 truncate"
-                      >
-                        <span className="text-primary font-medium">{j.service_time.slice(0, 5)}</span>{" "}
-                        <span>{j.name}</span>
-                      </button>
-                    ))}
+                    {items.map((j) => {
+                      const mins = parseMinutes(j.service_time);
+                      const heightPx = ((j.duration ?? 60) / 60) * 48;
+                      return (
+                        <button key={j.id} data-job-btn type="button" onClick={(ev) => { ev.stopPropagation(); onEditJob(j); }}
+                          className={`absolute inset-x-0.5 text-left text-[10px] leading-tight px-1 py-0.5 rounded truncate z-10 ${j.color ? "" : "bg-primary/15 text-primary"}`}
+                          style={{
+                            top: `${(mins / 60) * 48}px`,
+                            height: `${heightPx}px`,
+                            ...(j.color ? { backgroundColor: j.color + "26", color: j.color } : {}),
+                          }}
+                        >
+                          <span className="font-medium">{j.service_time.slice(0, 5)}</span>{" "}
+                          <span>{j.name}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 );
               })}
@@ -467,17 +485,26 @@ function DayList({
                     if ((e.target as HTMLElement).closest("[data-job-btn]")) return;
                     onSlotClick(date, h);
                   }}
-                  className="border-b h-14 hover:bg-accent/40 cursor-pointer p-1 space-y-1 overflow-hidden"
+                  className="relative border-b h-14 hover:bg-accent/40 cursor-pointer overflow-visible"
                 >
-                  {items.map((j) => (
+                  {items.map((j) => {
+                    const mins = parseMinutes(j.service_time);
+                    const heightPx = ((j.duration ?? 60) / 60) * 56;
+                    return (
                     <button key={j.id} data-job-btn type="button" onClick={(ev) => { ev.stopPropagation(); onEditJob(j); }}
-                      className="w-full text-left text-xs px-2 py-1 rounded bg-primary/15 hover:bg-primary/25 flex items-center gap-2"
+                      className={`absolute inset-x-1 text-left text-xs px-2 py-1 rounded flex items-center gap-2 z-10 ${j.color ? "" : "bg-primary/15 text-primary"}`}
+                      style={{
+                        top: `${(mins / 60) * 56}px`,
+                        height: `${heightPx}px`,
+                        ...(j.color ? { backgroundColor: j.color + "26", color: j.color } : {}),
+                      }}
                     >
-                      <span className="text-primary font-medium w-12 shrink-0">{j.service_time.slice(0, 5)}</span>
+                      <span className="font-medium w-12 shrink-0">{j.service_time.slice(0, 5)}</span>
                       <span className="flex-1 min-w-0 truncate">{j.name}</span>
-                      <span className="text-muted-foreground shrink-0">${Number(j.service_value).toFixed(0)}</span>
+                      <span className="shrink-0 opacity-70">${Number(j.service_value).toFixed(0)}</span>
                     </button>
-                  ))}
+                    );
+                  })}
                 </div>
               </Fragment>
             );

@@ -92,6 +92,8 @@ const empty: JobInsert = {
   sale_date: new Date().toISOString().slice(0, 10),
   call_status: "not_called",
   calls_made: 0,
+  color: null,
+  duration: 60,
 };
 
 export function JobFormDialog({
@@ -184,6 +186,8 @@ export function JobFormDialog({
               sale_date: job.sale_date ?? null,
               call_status: job.call_status ?? "not_called",
               calls_made: job.calls_made ?? 0,
+              color: job.color ?? null,
+              duration: job.duration ?? 60,
             }
           : {
               ...empty,
@@ -502,7 +506,7 @@ export function JobFormDialog({
           </div>
 
           {/* Dates */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
             <div className="grid gap-1.5">
               <Label>Service/Installation Date</Label>
               <Input
@@ -518,6 +522,23 @@ export function JobFormDialog({
                 value={form.service_time as string}
                 onChange={(e) => setForm({ ...form, service_time: e.target.value })}
               />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Duration (mins)</Label>
+              <Select
+                value={String(form.duration ?? 60)}
+                onValueChange={(v) => setForm({ ...form, duration: parseInt(v) })}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="30">30 min</SelectItem>
+                  <SelectItem value="60">1 hour</SelectItem>
+                  <SelectItem value="90">1.5 hours</SelectItem>
+                  <SelectItem value="120">2 hours</SelectItem>
+                  <SelectItem value="180">3 hours</SelectItem>
+                  <SelectItem value="240">4 hours</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -744,6 +765,42 @@ export function JobFormDialog({
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Event colour */}
+          <div className="grid gap-1.5" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
+            <Label>Event Colour</Label>
+            <div className="flex items-center gap-2 flex-wrap">
+              {["#3b82f6","#10b981","#f59e0b","#ef4444","#8b5cf6","#ec4899","#06b6d4","#f97316"].map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, color: c }))}
+                  className="w-6 h-6 rounded-full border-2 transition-transform hover:scale-110"
+                  style={{
+                    backgroundColor: c,
+                    borderColor: form.color === c ? "#000" : "transparent",
+                  }}
+                  title={c}
+                />
+              ))}
+              <input
+                type="color"
+                value={form.color ?? "#3b82f6"}
+                onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}
+                className="w-6 h-6 rounded cursor-pointer border p-0"
+                title="Custom colour"
+              />
+              {form.color && (
+                <button
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, color: null }))}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Notes */}

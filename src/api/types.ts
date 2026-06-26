@@ -20,12 +20,14 @@ export type Job = {
   sale_date: string | null;
   call_status: string | null;
   calls_made: number;
+  color: string | null;
+  duration: number;
   staff_ids: string[];
   created_at: string;
   updated_at: string;
 };
 
-export type JobInsert = Omit<Job, "id" | "created_at" | "updated_at">;
+export type JobInsert = Omit<Job, "id" | "created_at" | "updated_at" | "staff_ids">;
 export type JobUpdate = Partial<JobInsert>;
 
 export type JobProduct = {
