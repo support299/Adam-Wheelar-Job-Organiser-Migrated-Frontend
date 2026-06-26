@@ -33,6 +33,8 @@ export type Job = {
 
 export type JobInsert = Omit<Job, "id" | "created_at" | "updated_at" | "staff_ids"> & {
   occurrences?: number;
+  staff_ids?: string[];
+  product_lines?: JobProductLine[];
 };
 export type JobUpdate = Partial<JobInsert>;
 

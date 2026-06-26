@@ -1403,10 +1403,8 @@ export function IndexPage() {
   }, [pageResults]);
 
   async function handleSubmit(data: JobInsert, extras: { staffIds: string[]; lineItems: JobProductLine[] }) {
-    let savedId: string | null = null;
     let rolledToDate: string | null = null;
     const isDone = (s: string) => s === "completed" || s === "skip";
-    let seriesIds: string[] = [];
     if (editing) {
       const wasCompleted = isDone(editing.status);
       const nowCompleted = isDone(data.status);
@@ -1440,16 +1438,10 @@ export function IndexPage() {
       } else {
         await updateJob({ id: editing.id, body: data }).unwrap();
       }
-      savedId = editing.id;
-      seriesIds = [editing.id];
+      await setJobStaff({ jobId: editing.id, staffIds: extras.staffIds }).unwrap();
+      await setJobProducts({ jobId: editing.id, lines: extras.lineItems }).unwrap();
     } else {
-      const created = await createJob(data).unwrap();
-      savedId = created.id;
-      seriesIds = [created.id, ...(created.child_job_ids ?? [])];
-    }
-    for (const jobId of seriesIds) {
-      await setJobStaff({ jobId, staffIds: extras.staffIds }).unwrap();
-      await setJobProducts({ jobId, lines: extras.lineItems }).unwrap();
+      await createJob({ ...data, staff_ids: extras.staffIds, product_lines: extras.lineItems }).unwrap();
     }
     if (rolledToDate) {
       toast.success(`Recurring job rolled to ${rolledToDate}`);

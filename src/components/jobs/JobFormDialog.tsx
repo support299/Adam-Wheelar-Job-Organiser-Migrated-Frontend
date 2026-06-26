@@ -96,6 +96,7 @@ const empty: JobInsert = {
   duration: 60,
   parent_job_id: null,
   occurrence_index: null,
+  series_count: null,
   occurrences: 1,
 };
 
@@ -110,6 +111,7 @@ export function JobFormDialog({
 }: Props) {
   const [form, setForm] = useState<JobInsert>(empty);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("details");
   const [addressMode, setAddressMode] = useState<"automatic" | "manual">("automatic");
   const [staffIds, setStaffIds] = useState<string[]>([]);
@@ -163,7 +165,7 @@ export function JobFormDialog({
   }, [open, existingProducts, job?.id]);
 
   useEffect(() => {
-    if (open) setActiveTab(initialTab ?? "details");
+    if (open) { setActiveTab(initialTab ?? "details"); setSaveError(null); }
   }, [open, initialTab]);
 
   useEffect(() => {
@@ -193,6 +195,7 @@ export function JobFormDialog({
               duration: job.duration ?? 60,
               parent_job_id: job.parent_job_id ?? null,
               occurrence_index: job.occurrence_index ?? null,
+              series_count: job.series_count ?? null,
               occurrences: job.series_count ?? 1,
             }
           : {
@@ -260,6 +263,7 @@ export function JobFormDialog({
     }
     try {
       setSaving(true);
+      setSaveError(null);
       const prevCallStatus = job?.call_status ?? "not_called";
       const newCallStatus = (form.call_status as string | null) ?? "not_called";
       const baseCalls = Number(form.calls_made ?? 0);
@@ -274,7 +278,7 @@ export function JobFormDialog({
       );
       onOpenChange(false);
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Failed to save");
+      setSaveError(e instanceof Error ? e.message : "Failed to save. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -868,6 +872,11 @@ export function JobFormDialog({
             </div>
           )}
         </div>
+        {saveError && (
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {saveError}
+          </div>
+        )}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>

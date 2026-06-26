@@ -13,7 +13,7 @@ import {
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Users, Package, ArrowLeft, MapPin } from "lucide-react";
+import { Plus, Pencil, Trash2, Users, Package, ArrowLeft, MapPin, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { AddressAutocomplete } from "@/components/jobs/AddressAutocomplete";
 import type { Staff, StaffInsert, StaffUpdate, Product, ProductInsert, ProductUpdate, BaseLocation, BaseLocationInsert, BaseLocationUpdate } from "@/api/types";
@@ -120,11 +120,13 @@ function StaffDialog({ open, onOpenChange, staff }: { open: boolean; onOpenChang
   const [updateStaff] = useUpdateStaffMutation();
   const [createAuth] = useCreateStaffAuthMutation();
   const [saving, setSaving] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (open) {
       setForm(staff ? { name: staff.name, email: staff.email, phone: staff.phone, role: staff.role, active: staff.active } : empty);
       setPassword("");
+      setShowPassword(false);
     }
   }, [open, staff, empty]);
 
@@ -175,7 +177,12 @@ function StaffDialog({ open, onOpenChange, staff }: { open: boolean; onOpenChang
           </div>
           <div className="grid gap-1.5">
             <Label>Password {staff ? "(leave blank to keep)" : "(optional, min 8 chars)"}</Label>
-            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" placeholder={staff ? "Set new password to reset" : "Set login password"} />
+            <div className="relative">
+              <Input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" placeholder={staff ? "Set new password to reset" : "Set login password"} className="pr-9" />
+              <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-2.5 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword((v) => !v)} tabIndex={-1}>
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </div>
             <p className="text-[11px] text-muted-foreground">Login uses staff email. Setting a password creates or updates their login.</p>
           </div>
           <div className="grid grid-cols-2 gap-3">

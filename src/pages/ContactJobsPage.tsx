@@ -48,7 +48,7 @@ export function ContactJobsPage() {
   const { data: products = [] } = useListProductsQuery();
   const { data: staff = [] } = useListStaffQuery();
   const { data: allJobStaff = [] } = useListJobStaffQuery();
-  const { data: allJobProducts = [] } = useListAllJobProductsQuery();
+  const { data: allJobProducts = [] } = useListAllJobProductsQuery(ghlContactId ? { ghl_contact_id: ghlContactId } : undefined);
   const { data: allCompletions = [] } = useListJobCompletionsQuery();
   const [createJob] = useCreateJobMutation();
   const [updateJob] = useUpdateJobMutation();
@@ -111,58 +111,47 @@ export function ContactJobsPage() {
   const sortedJobs = useMemo(() => [...filteredJobs].sort((a, b) => b.service_date.localeCompare(a.service_date)), [filteredJobs]);
 
   async function handleSubmit(data: JobInsert, extras: { staffIds: string[]; lineItems: JobProductLine[] }) {
-    try {
-      const isDone = (s: string | undefined) => s === "completed" || s === "skip";
-      const wasCompleted = isDone(editing?.status);
-      const nowCompleted = isDone(data.status);
-      let rolledToDate: string | null = null;
-      let seriesIds: string[] = [];
-      if (editing) {
-        if (!wasCompleted && nowCompleted) {
-          try {
-            const completionBody: JobCompletionInsert = {
-              job_id: editing.id,
-              service_date: data.service_date,
-              service_time: data.service_time ?? null,
-              service_value: Number(data.service_value) || 0,
-              name: data.name,
-              email: data.email,
-              phone: data.phone ?? null,
-              address: data.address,
-              lat: data.lat ?? 0,
-              lng: data.lng ?? 0,
-              notes: data.notes ?? null,
-              staff_ids: extras.staffIds,
-              product_lines: extras.lineItems,
-              service_type: data.service_type ?? "installation",
-              sale_date: data.sale_date ?? null,
-            };
-            await createCompletion(completionBody).unwrap();
-          } catch (e: unknown) {
-            toast.error(e instanceof Error ? `Completion not recorded: ${e.message}` : "Completion not recorded");
-          }
+    const isDone = (s: string | undefined) => s === "completed" || s === "skip";
+    const wasCompleted = isDone(editing?.status);
+    const nowCompleted = isDone(data.status);
+    let rolledToDate: string | null = null;
+    if (editing) {
+      if (!wasCompleted && nowCompleted) {
+        try {
+          const completionBody: JobCompletionInsert = {
+            job_id: editing.id,
+            service_date: data.service_date,
+            service_time: data.service_time ?? null,
+            service_value: Number(data.service_value) || 0,
+            name: data.name,
+            email: data.email,
+            phone: data.phone ?? null,
+            address: data.address,
+            lat: data.lat ?? 0,
+            lng: data.lng ?? 0,
+            notes: data.notes ?? null,
+            staff_ids: extras.staffIds,
+            product_lines: extras.lineItems,
+            service_type: data.service_type ?? "installation",
+            sale_date: data.sale_date ?? null,
+          };
+          await createCompletion(completionBody).unwrap();
+        } catch (e: unknown) {
+          toast.error(e instanceof Error ? `Completion not recorded: ${e.message}` : "Completion not recorded");
         }
-        if (!wasCompleted && nowCompleted && data.is_recurring && data.frequency) {
-          rolledToDate = addFrequency(data.service_date, data.frequency as RecurrenceFrequency);
-          await updateJob({ id: editing.id, body: { ...data, service_date: rolledToDate, status: "pending", service_type: "servicing", sale_date: null } }).unwrap();
-        } else {
-          await updateJob({ id: editing.id, body: data }).unwrap();
-        }
-        seriesIds = [editing.id];
+      }
+      if (!wasCompleted && nowCompleted && data.is_recurring && data.frequency) {
+        rolledToDate = addFrequency(data.service_date, data.frequency as RecurrenceFrequency);
+        await updateJob({ id: editing.id, body: { ...data, service_date: rolledToDate, status: "pending", service_type: "servicing", sale_date: null } }).unwrap();
       } else {
-        const created = await createJob({ ...data, ghl_contact_id: ghlContactId ?? null }).unwrap();
-        seriesIds = [created.id, ...(created.child_job_ids ?? [])];
+        await updateJob({ id: editing.id, body: data }).unwrap();
       }
-      for (const jobId of seriesIds) {
-        await setJobStaff({ jobId, staffIds: extras.staffIds }).unwrap();
-        await setJobProducts({ jobId, lines: extras.lineItems }).unwrap();
-      }
-      toast.success(rolledToDate ? `Recurring job rolled to ${rolledToDate}` : editing ? "Job updated" : "Sale recorded");
-      setEditing(null);
-      setDialogOpen(false);
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Failed to save");
+      await setJobStaff({ jobId: editing.id, staffIds: extras.staffIds }).unwrap();
+      await setJobProducts({ jobId: editing.id, lines: extras.lineItems }).unwrap();
+    } else {
+      await createJob({ ...data, ghl_contact_id: ghlContactId ?? null, staff_ids: extras.staffIds, product_lines: extras.lineItems }).unwrap();
     }
+    toast.success(rolledToDate ? `Recurring job rolled to ${rolledToDate}` : editing ? "Job updated" : "Sale recorded");
   }
 
   async function handleDelete(id: string) {
