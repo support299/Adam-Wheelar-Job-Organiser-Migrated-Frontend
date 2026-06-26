@@ -872,7 +872,7 @@ function DailyPlanner({
 
   const dates = useMemo(() => Array.from(new Set(jobs.map((j) => j.service_date))).sort(), [jobs]);
   const [selectedDate, setSelectedDate] = useState<string>("");
-  const [statusFilter, setStatusFilter] = useState<string>("scheduled");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dueTagFilter, setDueTagFilter] = useState<string>("all");
   const [staffFilter, setStaffFilter] = useState<string>("all");
   const [baseId, setBaseId] = useState<string>("");
