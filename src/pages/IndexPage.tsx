@@ -54,7 +54,7 @@ import {
   FREQUENCY_LABELS,
   type RecurrenceFrequency,
   getDueTag,
-  DUE_TAG_LABELS,
+  getDueTagLabel,
   type DueTag,
   daysUntil,
   distanceKm,
@@ -1551,7 +1551,7 @@ export function IndexPage() {
                             )}
                             {(() => {
                               const t = getDueTag(job);
-                              return t ? <Badge variant="outline" className={dueTagBadgeClass(t)}>{DUE_TAG_LABELS[t]}</Badge> : null;
+                              return t ? <Badge variant="outline" className={dueTagBadgeClass(t)}>{getDueTagLabel(t, job.service_type)}</Badge> : null;
                             })()}
                             <span className="text-xs text-muted-foreground">
                               {job.service_time.slice(0, 5)} · ${Number(job.service_value).toFixed(2)}
@@ -1603,7 +1603,7 @@ export function IndexPage() {
                             return (
                               <div className="text-xs flex items-center gap-1 mt-1">
                                 <CalendarClock className="h-3 w-3 shrink-0 text-muted-foreground" />
-                                <span className="text-muted-foreground">Next service due:</span>
+                                <span className="text-muted-foreground">{job.service_type === "installation" ? "Install due:" : "Service due:"}</span>
                                 <span className="font-medium">{dateLabel}</span>
                                 <span className={tone}>· {countdown}</span>
                               </div>

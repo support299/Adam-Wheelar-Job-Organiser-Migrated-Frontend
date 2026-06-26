@@ -38,7 +38,7 @@ import { toast } from "sonner";
 import { useListStaffQuery } from "@/api/staffApi";
 import { useListProductsQuery } from "@/api/productsApi";
 import { useListGhlContactsQuery } from "@/api/contactsApi";
-import { useGetJobStaffQuery, useGetJobProductsQuery, useListJobsQuery } from "@/api/jobsApi";
+import { useGetJobStaffQuery, useGetJobProductsQuery, useListJobsQuery, useListAllJobProductsQuery } from "@/api/jobsApi";
 import type { Job, JobInsert, JobProductLine, GhlContact } from "@/api/types";
 
 function parseCoordsFromUrl(input: string): { lat: number; lng: number } | null {
@@ -124,6 +124,10 @@ export function JobFormDialog({
   const { data: contacts = [] } = useListGhlContactsQuery(undefined, { skip: !open });
   const { data: existingStaff } = useGetJobStaffQuery(job?.id ?? "", { skip: !open || !job });
   const { data: existingProducts } = useGetJobProductsQuery(job?.id ?? "", { skip: !open || !job });
+  const { data: suggestedJobProducts = [] } = useListAllJobProductsQuery(
+    form.ghl_contact_id ? { ghl_contact_id: form.ghl_contact_id, service_type: "installation" } : undefined,
+    { skip: !open || !!job || !form.ghl_contact_id || form.service_type !== "servicing" },
+  );
   const { data: contactJobs = [] } = useListJobsQuery(
     form.ghl_contact_id ? { ghl_contact_id: form.ghl_contact_id } : undefined,
     { skip: !open || !!job || !form.ghl_contact_id },
@@ -767,6 +771,31 @@ export function JobFormDialog({
                 <Plus className="h-3 w-3 mr-1" /> Add line
               </Button>
             </div>
+            {!job && form.service_type === "servicing" && suggestedJobProducts.length > 0 && (() => {
+              const addedIds = new Set(lineItems.map((l) => l.product_id));
+              const chips = suggestedJobProducts.filter((s) => !addedIds.has(s.product_id));
+              if (chips.length === 0) return null;
+              return (
+                <div className="flex flex-wrap gap-1.5">
+                  <span className="text-xs text-muted-foreground self-center">Suggested:</span>
+                  {chips.map((s) => {
+                    const p = allProducts.find((x) => x.id === s.product_id);
+                    if (!p) return null;
+                    return (
+                      <button
+                        key={s.product_id}
+                        type="button"
+                        onClick={() => setLineItems((prev) => [...prev, { product_id: p.id, quantity: 1, unit_price: Number(p.price) }])}
+                        className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium hover:bg-accent transition-colors"
+                      >
+                        <Plus className="h-3 w-3" />
+                        {p.name}{p.sku ? ` (${p.sku})` : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
             {lineItems.length === 0 ? (
               <p className="text-xs text-muted-foreground">No products added.</p>
             ) : (

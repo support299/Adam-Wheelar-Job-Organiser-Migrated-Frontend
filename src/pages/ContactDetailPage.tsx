@@ -16,7 +16,7 @@ import { JobFormDialog } from "@/components/jobs/JobFormDialog";
 import { PurchasesAddresses } from "@/components/contacts/PurchasesAddresses";
 import { ContactActivity } from "@/components/contacts/ContactActivity";
 import { groupJobsByContact, contactIdFromKey } from "./ContactsListPage";
-import { daysUntil, getDueTag, DUE_TAG_LABELS, type DueTag, FREQUENCY_LABELS, type RecurrenceFrequency } from "@/lib/jobs";
+import { daysUntil, getDueTag, getDueTagLabel, type DueTag, FREQUENCY_LABELS, type RecurrenceFrequency } from "@/lib/jobs";
 import type { Job, JobInsert, JobCompletion, JobProductLine } from "@/api/types";
 import { useListJobsQuery, useUpdateJobMutation, useDeleteJobMutation, useSetJobProductsMutation, useSetJobStaffMutation, useListAllJobProductsQuery, useListJobCompletionsQuery, useUpdateJobCompletionMutation, useDeleteJobCompletionMutation } from "@/api/jobsApi";
 import { useListProductsQuery } from "@/api/productsApi";
@@ -238,7 +238,7 @@ export function ContactDetailPage() {
                                 </div>
                                 <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
                                   <CalendarClock className="h-3 w-3" />
-                                  Service date: <strong className="text-foreground">{serviceLabel}</strong>
+                                  {c.service_type === "installation" ? "Install date:" : "Service date:"} <strong className="text-foreground">{serviceLabel}</strong>
                                 </div>
                                 <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1 flex-wrap">
                                   <Users className="h-3 w-3" />
@@ -305,11 +305,11 @@ export function ContactDetailPage() {
                                     {FREQUENCY_LABELS[job.frequency as RecurrenceFrequency]}
                                   </Badge>
                                 )}
-                                {tag && <Badge variant="outline" className={dueTagBadgeClass(tag)}>{DUE_TAG_LABELS[tag]}</Badge>}
+                                {tag && <Badge variant="outline" className={dueTagBadgeClass(tag)}>{getDueTagLabel(tag, job.service_type)}</Badge>}
                               </div>
                               <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
                                 <CalendarClock className="h-3 w-3" />
-                                Next service due: <strong className="text-foreground">{dateLabel}</strong>
+                                {job.service_type === "installation" ? "Install due:" : "Service due:"} <strong className="text-foreground">{dateLabel}</strong>
                                 <span>· {countdown}</span>
                               </div>
                               <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1 flex-wrap">

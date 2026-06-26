@@ -70,7 +70,7 @@ export const jobsApi = baseApi.injectEndpoints({
       query: (jobId) => `/jobs/${jobId}/products/`,
       providesTags: (_r, _e, jobId) => [{ type: "Job", id: `PRODUCTS-${jobId}` }],
     }),
-    listAllJobProducts: build.query<JobProduct[], { ghl_contact_id?: string } | void>({
+    listAllJobProducts: build.query<JobProduct[], { ghl_contact_id?: string; service_type?: string } | void>({
       query: (params) => ({
         url: "/jobs/products/",
         params: params ?? {},

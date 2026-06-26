@@ -13,7 +13,7 @@ import { Mail, Phone, MapPin, Plus, CalendarClock, Users, Package, Pencil, Trash
 import { toast } from "sonner";
 import { JobFormDialog } from "@/components/jobs/JobFormDialog";
 import { PurchasesAddresses } from "@/components/contacts/PurchasesAddresses";
-import { daysUntil, getDueTag, DUE_TAG_LABELS, type DueTag, FREQUENCY_LABELS, type RecurrenceFrequency, addFrequency } from "@/lib/jobs";
+import { daysUntil, getDueTag, getDueTagLabel, DUE_TAG_LABELS, type DueTag, FREQUENCY_LABELS, type RecurrenceFrequency, addFrequency } from "@/lib/jobs";
 import type { Job, JobInsert, JobProductLine, JobCompletionInsert } from "@/api/types";
 import { useListJobsQuery, useCreateJobMutation, useUpdateJobMutation, useDeleteJobMutation, useSetJobProductsMutation, useSetJobStaffMutation, useListAllJobProductsQuery, useListJobCompletionsQuery, useDeleteJobCompletionMutation, useCreateJobCompletionMutation } from "@/api/jobsApi";
 import { useListProductsQuery } from "@/api/productsApi";
@@ -279,11 +279,11 @@ export function ContactJobsPage() {
                                 {FREQUENCY_LABELS[job.frequency as RecurrenceFrequency]}
                               </Badge>
                             )}
-                            {tag && <Badge variant="outline" className={dueTagBadgeClass(tag)}>{DUE_TAG_LABELS[tag]}</Badge>}
+                            {tag && <Badge variant="outline" className={dueTagBadgeClass(tag)}>{getDueTagLabel(tag, job.service_type)}</Badge>}
                           </div>
                           <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
                             <CalendarClock className="h-3 w-3" />
-                            Service: <strong className="text-foreground">{dateLabel}</strong>
+                            {job.service_type === "installation" ? "Install due:" : "Service due:"} <strong className="text-foreground">{dateLabel}</strong>
                             <span>· {countdown}</span>
                           </div>
                           <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1 flex-wrap">

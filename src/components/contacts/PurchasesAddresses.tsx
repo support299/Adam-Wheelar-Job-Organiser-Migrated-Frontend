@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { MapPin, Package, Trash2 } from "lucide-react";
 import {
   getDueTag,
-  DUE_TAG_LABELS,
+  getDueTagLabel,
   type DueTag,
   FREQUENCY_LABELS,
   type RecurrenceFrequency,
@@ -211,7 +211,7 @@ export function PurchasesAddresses({ jobs, completions, jobProducts, products, o
                             )}
                             {dueTag && (
                               <Badge variant="outline" className={dueTagBadgeClass(dueTag)}>
-                                {DUE_TAG_LABELS[dueTag]}
+                                {getDueTagLabel(dueTag, recentJob?.service_type)}
                               </Badge>
                             )}
                             {!recentJob?.is_recurring && !dueTag && <span className="text-xs text-muted-foreground">—</span>}
