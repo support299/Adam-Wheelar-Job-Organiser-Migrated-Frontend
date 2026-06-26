@@ -3,7 +3,7 @@ import { baseApi } from "./baseApi";
 export const authApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
     login: build.mutation<
-      { access: string; refresh: string; email: string; id: number },
+      { access: string; refresh: string; email: string; id: number; is_admin?: boolean },
       { email: string; password: string }
     >({
       query: (body) => ({ url: "/auth/login/", method: "POST", body }),

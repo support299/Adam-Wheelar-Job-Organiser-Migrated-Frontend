@@ -33,7 +33,7 @@ import { cn } from "@/lib/utils";
 import { AddressAutocomplete } from "@/components/jobs/AddressAutocomplete";
 import { JobActivity } from "@/components/jobs/JobActivity";
 import { contactKeyForJob } from "@/pages/ContactsListPage";
-import { FREQUENCY_LABELS, type RecurrenceFrequency } from "@/lib/jobs";
+import { FREQUENCY_LABELS, localIsoDate, type RecurrenceFrequency } from "@/lib/jobs";
 import { toast } from "sonner";
 import { useListStaffQuery } from "@/api/staffApi";
 import { useListProductsQuery } from "@/api/productsApi";
@@ -82,14 +82,14 @@ const empty: JobInsert = {
   address: "",
   lat: 0,
   lng: 0,
-  service_date: new Date().toISOString().slice(0, 10),
+  service_date: localIsoDate(),
   service_time: "09:00",
   status: "pending",
   notes: "",
   is_recurring: true,
   frequency: "annually",
   service_type: "installation",
-  sale_date: new Date().toISOString().slice(0, 10),
+  sale_date: localIsoDate(),
   call_status: "not_called",
   calls_made: 0,
   color: null,

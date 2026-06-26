@@ -41,8 +41,12 @@ export function addFrequency(dateStr: string, freq: RecurrenceFrequency): string
   return date.toISOString().slice(0, 10);
 }
 
+export function localIsoDate(d = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export function nextDueDate(dateStr: string, freq: RecurrenceFrequency): string {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localIsoDate();
   let next = dateStr;
   for (let i = 0; i < 1000 && next < today; i++) {
     next = addFrequency(next, freq);

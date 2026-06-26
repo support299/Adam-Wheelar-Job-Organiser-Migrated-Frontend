@@ -1,4 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { useDispatch } from "react-redux";
+import { clearCredentials, REFRESH_KEY } from "@/store/authSlice";
+import { useLogoutMutation } from "@/api/authApi";
 import { Link } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -16,6 +19,7 @@ import {
   Plus, Pencil, Trash2, MapPin, Sparkles, Search, ArrowUp, ArrowDown,
   CalendarIcon, CalendarClock, Settings as SettingsIcon, Users, History,
   Circle as CircleIcon, ExternalLink, Phone, PhoneCall, Copy, BarChart3, Clock,
+  LogOut,
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -897,7 +901,7 @@ function DailyPlanner({
   // Default date to nearest upcoming
   useEffect(() => {
     if (!selectedDate && dates.length) {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = isoDate(new Date());
       setSelectedDate(dates.find((d) => d >= today) ?? dates[0]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1299,8 +1303,18 @@ function DailyPlanner({
 // ─── IndexPage ───────────────────────────────────────────────────────────────
 
 export function IndexPage() {
+  const dispatch = useDispatch();
+  const [logoutMutation] = useLogoutMutation();
+
+  async function handleLogout() {
+    const refresh = localStorage.getItem(REFRESH_KEY);
+    if (refresh) {
+      try { await logoutMutation({ refresh }).unwrap(); } catch { /* best-effort */ }
+    }
+    dispatch(clearCredentials());
+  }
+
   const [activeMainTab, setActiveMainTab] = useState("jobs");
-  const { data: jobs = [] } = useListJobsQuery(undefined, { skip: activeMainTab === "jobs" });
   const { data: staff = [] } = useListStaffQuery();
   const [createJob] = useCreateJobMutation();
   const [updateJob] = useUpdateJobMutation();
@@ -1338,6 +1352,13 @@ export function IndexPage() {
   const [mapCallsMin, setMapCallsMin] = useState("");
   const [mapCallsMax, setMapCallsMax] = useState("");
 
+  // Map View fetches only the visible date window; Daily Planner fetches all jobs.
+  const { data: mapJobs = [] } = useListJobsQuery(
+    { dateFrom: mapDateFrom || undefined, dateTo: mapDateTo || undefined },
+    { skip: activeMainTab !== "map" },
+  );
+  const { data: plannerJobs = [] } = useListJobsQuery(undefined, { skip: activeMainTab !== "planner" });
+
   // Reset to the first page whenever the Jobs List filters change.
   useEffect(() => {
     setPage(1);
@@ -1360,16 +1381,14 @@ export function IndexPage() {
 
   const jobStaffMap = useMemo(() => {
     const map: Record<string, string[]> = {};
-    for (const j of [...pageResults, ...jobs]) {
+    for (const j of [...pageResults, ...mapJobs, ...plannerJobs]) {
       if (j.staff_ids?.length) map[j.id] = j.staff_ids;
     }
     return map;
-  }, [pageResults, jobs]);
+  }, [pageResults, mapJobs, plannerJobs]);
 
   const mapFiltered = useMemo(() => {
-    return jobs.filter((j) => {
-      if (mapDateFrom && j.service_date < mapDateFrom) return false;
-      if (mapDateTo && j.service_date > mapDateTo) return false;
+    return mapJobs.filter((j) => {
       if (mapStatusFilter !== "all" && j.status !== mapStatusFilter) return false;
       if (dueTagFilter !== "all") {
         const t = getDueTag(j);
@@ -1387,7 +1406,7 @@ export function IndexPage() {
       if (mapCallsMax !== "" && callsMade > Number(mapCallsMax)) return false;
       return true;
     });
-  }, [jobs, mapDateFrom, mapDateTo, mapStatusFilter, dueTagFilter, staffFilter, jobStaffMap, mapCallStatusFilter, mapCallsMin, mapCallsMax]);
+  }, [mapJobs, mapStatusFilter, dueTagFilter, staffFilter, jobStaffMap, mapCallStatusFilter, mapCallsMin, mapCallsMax]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -1487,8 +1506,11 @@ export function IndexPage() {
             <Button variant="outline" size="sm" asChild>
               <Link to="/plans"><CalendarClock className="h-4 w-4 sm:mr-2" /><span className="hidden sm:inline">Saved Plans</span></Link>
             </Button>
-            <Button size="sm" onClick={() => { setEditing(null); setDialogOpen(true); }}>
+            <Button size="sm" onClick={() => { setEditing(null); setDialogOpen(true); }} className="cursor-pointer">
               <Plus className="h-4 w-4 sm:mr-2" /><span className="hidden sm:inline">Add Job</span>
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleLogout} className="cursor-pointer">
+              <LogOut className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -1668,7 +1690,7 @@ export function IndexPage() {
           <TabsContent value="map">
             <MapViewPanel
               jobs={mapFiltered}
-              allJobs={jobs}
+              allJobs={mapJobs}
               dateFrom={mapDateFrom}
               setDateFrom={setMapDateFrom}
               dateTo={mapDateTo}
@@ -1696,7 +1718,7 @@ export function IndexPage() {
 
           {/* DAILY PLANNER */}
           <TabsContent value="planner">
-            <DailyPlanner jobs={jobs} staff={staff} jobStaffMap={jobStaffMap} />
+            <DailyPlanner jobs={plannerJobs} staff={staff} jobStaffMap={jobStaffMap} />
           </TabsContent>
         </Tabs>
       </main>
