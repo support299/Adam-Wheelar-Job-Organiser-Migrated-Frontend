@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useDispatch } from "react-redux";
+import { clearCredentials } from "@/store/authSlice";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,8 +15,8 @@ import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  ArrowLeft, MapPin, Trash2, Users, CalendarClock, Phone, Navigation, Mail,
-  Package, ChevronDown, ChevronRight, Pencil, ArrowUp, ArrowDown, X,
+  MapPin, Trash2, Users, CalendarClock, Phone, Navigation, Mail,
+  Package, ChevronDown, ChevronRight, Pencil, ArrowUp, ArrowDown, X, LogOut,
 } from "lucide-react";
 import { toast } from "sonner";
 import { JobFormDialog } from "@/components/jobs/JobFormDialog";
@@ -41,6 +42,12 @@ function mapsUrl(j: Job): string {
 }
 
 export function PlansPage() {
+  const dispatch = useDispatch();
+
+  function handleLogout() {
+    dispatch(clearCredentials());
+  }
+
   const { data: plans = [], isLoading } = useListPlansQuery();
   const { data: staff = [] } = useListStaffQuery();
   const { data: jobs = [] } = useListJobsQuery();
@@ -106,11 +113,13 @@ export function PlansPage() {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="max-w-5xl mx-auto px-3 sm:px-4 py-3 sm:py-4 flex items-center gap-3">
-          <Button variant="ghost" size="icon" asChild><Link to="/"><ArrowLeft className="h-4 w-4" /></Link></Button>
-          <div>
+          <div className="flex-1">
             <h1 className="text-lg sm:text-xl font-semibold tracking-tight">Saved Plans</h1>
             <p className="text-[11px] sm:text-xs text-muted-foreground">Optimized daily route plans</p>
           </div>
+          <Button variant="outline" size="sm" onClick={handleLogout}>
+            <LogOut className="h-4 w-4 mr-1" />Logout
+          </Button>
         </div>
       </header>
 

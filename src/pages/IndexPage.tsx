@@ -1,7 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useDispatch } from "react-redux";
-import { clearCredentials, REFRESH_KEY } from "@/store/authSlice";
-import { useLogoutMutation } from "@/api/authApi";
+import { clearCredentials } from "@/store/authSlice";
 import { Link } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -1304,13 +1303,7 @@ function DailyPlanner({
 
 export function IndexPage() {
   const dispatch = useDispatch();
-  const [logoutMutation] = useLogoutMutation();
-
-  async function handleLogout() {
-    const refresh = localStorage.getItem(REFRESH_KEY);
-    if (refresh) {
-      try { await logoutMutation({ refresh }).unwrap(); } catch { /* best-effort */ }
-    }
+  function handleLogout() {
     dispatch(clearCredentials());
   }
 
