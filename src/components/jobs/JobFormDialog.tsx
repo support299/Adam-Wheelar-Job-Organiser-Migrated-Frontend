@@ -92,7 +92,6 @@ const empty: JobInsert = {
   sale_date: localIsoDate(),
   call_status: "not_called",
   calls_made: 0,
-  color: null,
   duration: 60,
   parent_job_id: null,
   occurrence_index: null,
@@ -195,7 +194,6 @@ export function JobFormDialog({
               sale_date: job.sale_date ?? null,
               call_status: job.call_status ?? "not_called",
               calls_made: job.calls_made ?? 0,
-              color: job.color ?? null,
               duration: job.duration ?? 60,
               parent_job_id: job.parent_job_id ?? null,
               occurrence_index: job.occurrence_index ?? null,
@@ -846,42 +844,6 @@ export function JobFormDialog({
                 </div>
               </div>
             )}
-          </div>
-
-          {/* Event colour */}
-          <div className="grid gap-1.5" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
-            <Label>Event Colour</Label>
-            <div className="flex items-center gap-2 flex-wrap">
-              {["#3b82f6","#10b981","#f59e0b","#ef4444","#8b5cf6","#ec4899","#06b6d4","#f97316"].map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setForm((f) => ({ ...f, color: c }))}
-                  className="w-6 h-6 rounded-full border-2 transition-transform hover:scale-110"
-                  style={{
-                    backgroundColor: c,
-                    borderColor: form.color === c ? "#000" : "transparent",
-                  }}
-                  title={c}
-                />
-              ))}
-              <input
-                type="color"
-                value={form.color ?? "#3b82f6"}
-                onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}
-                className="w-6 h-6 rounded cursor-pointer border p-0"
-                title="Custom colour"
-              />
-              {form.color && (
-                <button
-                  type="button"
-                  onClick={() => setForm((f) => ({ ...f, color: null }))}
-                  className="text-xs text-muted-foreground hover:text-foreground"
-                >
-                  Reset
-                </button>
-              )}
-            </div>
           </div>
 
           {/* Notes */}

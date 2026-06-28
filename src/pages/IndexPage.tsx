@@ -216,6 +216,11 @@ function MapCalendar({
   const [useCircle, setUseCircle] = useState(false);
   const [slotPick, setSlotPick] = useState<{ date: Date; hour: number } | null>(null);
 
+  const staffColorMap = useMemo(
+    () => Object.fromEntries(staff.map((s) => [s.id, s.color ?? null])),
+    [staff]
+  );
+
   const range = useMemo(() => {
     if (view === "day") {
       return { start: new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate()), end: new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate()) };
@@ -313,11 +318,11 @@ function MapCalendar({
       </div>
 
       {view === "month" ? (
-        <MonthGrid anchor={anchor} range={range} jobsByDay={jobsByDay} onEditJob={onEditJob} />
+        <MonthGrid anchor={anchor} range={range} jobsByDay={jobsByDay} onEditJob={onEditJob} staffColorMap={staffColorMap} />
       ) : view === "week" ? (
-        <WeekGrid range={range} jobsByDay={jobsByDay} onEditJob={onEditJob} onSlotClick={(d, h) => setSlotPick({ date: d, hour: h })} />
+        <WeekGrid range={range} jobsByDay={jobsByDay} onEditJob={onEditJob} onSlotClick={(d, h) => setSlotPick({ date: d, hour: h })} staffColorMap={staffColorMap} />
       ) : (
-        <DayList date={anchor} jobs={jobsByDay[isoDate(anchor)] ?? []} onEditJob={onEditJob} onSlotClick={(d, h) => setSlotPick({ date: d, hour: h })} />
+        <DayList date={anchor} jobs={jobsByDay[isoDate(anchor)] ?? []} onEditJob={onEditJob} onSlotClick={(d, h) => setSlotPick({ date: d, hour: h })} staffColorMap={staffColorMap} />
       )}
 
       <div className="text-xs text-muted-foreground mt-3">
@@ -330,13 +335,15 @@ function MapCalendar({
 }
 
 function MonthGrid({
-  anchor, range, jobsByDay, onEditJob,
+  anchor, range, jobsByDay, onEditJob, staffColorMap,
 }: {
   anchor: Date;
   range: { start: Date; end: Date };
   jobsByDay: Record<string, Job[]>;
   onEditJob: (j: Job) => void;
+  staffColorMap: Record<string, string | null>;
 }) {
+  const jobColor = (j: Job): string | null => j.staff_ids?.[0] ? (staffColorMap[j.staff_ids[0]] ?? null) : null;
   const days: Date[] = [];
   for (let d = new Date(range.start); d <= range.end; d = addDays(d, 1)) days.push(new Date(d));
   const today = new Date();
@@ -344,39 +351,40 @@ function MonthGrid({
   const dayNames = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
   return (
     <div className="border rounded-md overflow-hidden">
-      <div className="grid grid-cols-7 bg-muted/50 text-[10px] font-medium text-muted-foreground">
+      <div className="grid grid-cols-7 bg-muted/50 text-xs font-semibold text-muted-foreground">
         {dayNames.map((d) => (
-          <div key={d} className="px-2 py-1 text-center border-r last:border-r-0">{d}</div>
+          <div key={d} className="px-2 py-2 text-center border-r last:border-r-0">{d}</div>
         ))}
       </div>
-      <div className="grid grid-cols-7 auto-rows-[minmax(110px,1fr)]">
+      <div className="grid grid-cols-7 auto-rows-[minmax(140px,1fr)]">
         {days.map((d, i) => {
           const iso = isoDate(d);
           const items = jobsByDay[iso] ?? [];
           const inMonth = d.getMonth() === month;
           const isToday = sameDay(d, today);
           return (
-            <div key={i} className={`border-r border-b last:border-r-0 p-1 overflow-hidden ${inMonth ? "" : "bg-muted/30 text-muted-foreground"}`}>
-              <div className={`text-xs font-medium mb-1 flex items-center justify-center w-6 h-6 rounded-full ${isToday ? "bg-primary text-primary-foreground" : ""}`}>
+            <div key={i} className={`border-r border-b last:border-r-0 p-1.5 overflow-hidden ${inMonth ? "" : "bg-muted/30 text-muted-foreground"}`}>
+              <div className={`text-sm font-semibold mb-1 flex items-center justify-center w-7 h-7 rounded-full ${isToday ? "bg-primary text-primary-foreground" : ""}`}>
                 {d.getDate()}
               </div>
-              <div className="space-y-0.5">
-                {items.slice(0, 3).map((j) => (
-                  <button key={j.id} type="button" onClick={() => onEditJob(j)}
-                    className="w-full text-left text-[10px] leading-tight px-1 py-0.5 rounded truncate"
-                    style={j.color
-                      ? { backgroundColor: j.color + "26", color: j.color }
-                      : undefined}
-                    title={`${j.service_time.slice(0, 5)} ${j.name}`}
-                  >
-                    <span className={j.color ? "" : "text-primary"} style={j.color ? { color: j.color } : undefined}>
-                      <span className="font-medium">{j.service_time.slice(0, 5)}</span>{" "}
-                    </span>
-                    <span className="truncate">{j.name}</span>
-                  </button>
-                ))}
+              <div className="space-y-1">
+                {items.slice(0, 3).map((j) => {
+                  const jc = jobColor(j);
+                  return (
+                    <button key={j.id} type="button" onClick={() => onEditJob(j)}
+                      className="w-full text-left text-sm leading-snug px-2 py-1 rounded overflow-hidden"
+                      style={jc ? { backgroundColor: jc + "26", color: jc } : undefined}
+                      title={`${j.service_time.slice(0, 5)} ${j.name}`}
+                    >
+                      <div className={`font-semibold truncate ${jc ? "" : "text-primary"}`} style={jc ? { color: jc } : undefined}>
+                        {j.service_time.slice(0, 5)}
+                      </div>
+                      <div className="truncate">{j.name}</div>
+                    </button>
+                  );
+                })}
                 {items.length > 3 && (
-                  <div className="text-[10px] text-muted-foreground px-1">+{items.length - 3} more</div>
+                  <div className="text-xs text-muted-foreground px-1">+{items.length - 3} more</div>
                 )}
               </div>
             </div>
@@ -388,26 +396,28 @@ function MonthGrid({
 }
 
 function WeekGrid({
-  range, jobsByDay, onEditJob, onSlotClick,
+  range, jobsByDay, onEditJob, onSlotClick, staffColorMap,
 }: {
   range: { start: Date; end: Date };
   jobsByDay: Record<string, Job[]>;
   onEditJob: (j: Job) => void;
   onSlotClick: (date: Date, hour: number) => void;
+  staffColorMap: Record<string, string | null>;
 }) {
+  const jobColor = (j: Job): string | null => j.staff_ids?.[0] ? (staffColorMap[j.staff_ids[0]] ?? null) : null;
   const days: Date[] = [];
   for (let d = new Date(range.start); d <= range.end; d = addDays(d, 1)) days.push(new Date(d));
   const today = new Date();
   return (
     <div className="border rounded-md overflow-hidden">
-      <div className="grid bg-muted/50 text-xs font-medium" style={{ gridTemplateColumns: "60px repeat(7, minmax(0, 1fr))" }}>
+      <div className="grid bg-muted/50 text-sm font-medium" style={{ gridTemplateColumns: "72px repeat(7, minmax(0, 1fr))" }}>
         <div className="border-r" />
         {days.map((d) => {
           const isToday = sameDay(d, today);
           return (
             <div key={d.toISOString()} className="px-2 py-2 text-center border-r last:border-r-0">
-              <div className="text-[10px] text-muted-foreground">{format(d, "EEE")}</div>
-              <div className={`inline-flex items-center justify-center w-7 h-7 rounded-full ${isToday ? "bg-primary text-primary-foreground" : ""}`}>
+              <div className="text-xs text-muted-foreground font-semibold uppercase">{format(d, "EEE")}</div>
+              <div className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold ${isToday ? "bg-primary text-primary-foreground" : ""}`}>
                 {d.getDate()}
               </div>
             </div>
@@ -415,10 +425,10 @@ function WeekGrid({
         })}
       </div>
       <div className="max-h-[600px] overflow-y-auto">
-        <div className="grid" style={{ gridTemplateColumns: "60px repeat(7, minmax(0, 1fr))" }}>
+        <div className="grid" style={{ gridTemplateColumns: "72px repeat(7, minmax(0, 1fr))" }}>
           {CAL_HOURS.map((h) => (
             <Fragment key={h}>
-              <div className="border-r border-b text-[10px] text-muted-foreground text-right pr-2 pt-1 h-12 bg-muted/20">
+              <div className="border-r border-b text-xs text-muted-foreground text-right pr-2 pt-1.5 h-16 bg-muted/20">
                 {formatHour(h)}
               </div>
               {days.map((d) => {
@@ -430,22 +440,23 @@ function WeekGrid({
                       if ((e.target as HTMLElement).closest("[data-job-btn]")) return;
                       onSlotClick(d, h);
                     }}
-                    className="relative border-r last:border-r-0 border-b h-12 hover:bg-accent/40 cursor-pointer overflow-visible"
+                    className="relative border-r last:border-r-0 border-b h-16 hover:bg-accent/40 cursor-pointer overflow-visible"
                   >
                     {items.map((j) => {
+                      const jc = jobColor(j);
                       const mins = parseMinutes(j.service_time);
-                      const heightPx = ((j.duration ?? 60) / 60) * 48;
+                      const heightPx = ((j.duration ?? 60) / 60) * 64;
                       return (
                         <button key={j.id} data-job-btn type="button" onClick={(ev) => { ev.stopPropagation(); onEditJob(j); }}
-                          className={`absolute inset-x-0.5 text-left text-[10px] leading-tight px-1 py-0.5 rounded truncate z-10 ${j.color ? "" : "bg-primary/15 text-primary"}`}
+                          className={`absolute inset-x-0.5 text-left text-sm leading-snug px-2 py-1 rounded overflow-hidden z-10 ${jc ? "" : "bg-primary/15 text-primary"}`}
                           style={{
-                            top: `${(mins / 60) * 48}px`,
+                            top: `${(mins / 60) * 64}px`,
                             height: `${heightPx}px`,
-                            ...(j.color ? { backgroundColor: j.color + "26", color: j.color } : {}),
+                            ...(jc ? { backgroundColor: jc + "26", color: jc } : {}),
                           }}
                         >
-                          <span className="font-medium">{j.service_time.slice(0, 5)}</span>{" "}
-                          <span>{j.name}</span>
+                          <div className="font-semibold truncate">{j.service_time.slice(0, 5)}</div>
+                          <div className="truncate">{j.name}</div>
                         </button>
                       );
                     })}
@@ -461,26 +472,28 @@ function WeekGrid({
 }
 
 function DayList({
-  date, jobs, onEditJob, onSlotClick,
+  date, jobs, onEditJob, onSlotClick, staffColorMap,
 }: {
   date: Date;
   jobs: Job[];
   onEditJob: (j: Job) => void;
   onSlotClick: (date: Date, hour: number) => void;
+  staffColorMap: Record<string, string | null>;
 }) {
+  const jobColor = (j: Job): string | null => j.staff_ids?.[0] ? (staffColorMap[j.staff_ids[0]] ?? null) : null;
   return (
     <div className="border rounded-md overflow-hidden">
-      <div className="grid bg-muted/50 text-xs font-medium" style={{ gridTemplateColumns: "60px minmax(0,1fr)" }}>
+      <div className="grid bg-muted/50 text-sm font-semibold" style={{ gridTemplateColumns: "72px minmax(0,1fr)" }}>
         <div className="border-r" />
-        <div className="px-2 py-2 text-center">{format(date, "EEEE, MMM d")}</div>
+        <div className="px-3 py-3 text-center">{format(date, "EEEE, MMM d")}</div>
       </div>
       <div className="max-h-[600px] overflow-y-auto">
-        <div className="grid" style={{ gridTemplateColumns: "60px minmax(0,1fr)" }}>
+        <div className="grid" style={{ gridTemplateColumns: "72px minmax(0,1fr)" }}>
           {CAL_HOURS.map((h) => {
             const items = jobs.filter((j) => parseHour(j.service_time) === h);
             return (
               <Fragment key={h}>
-                <div className="border-r border-b text-[10px] text-muted-foreground text-right pr-2 pt-1 h-14 bg-muted/20">
+                <div className="border-r border-b text-sm text-muted-foreground text-right pr-3 pt-2 h-20 bg-muted/20">
                   {formatHour(h)}
                 </div>
                 <div
@@ -488,23 +501,23 @@ function DayList({
                     if ((e.target as HTMLElement).closest("[data-job-btn]")) return;
                     onSlotClick(date, h);
                   }}
-                  className="relative border-b h-14 hover:bg-accent/40 cursor-pointer overflow-visible"
+                  className="relative border-b h-20 hover:bg-accent/40 cursor-pointer overflow-visible"
                 >
                   {items.map((j) => {
+                    const jc = jobColor(j);
                     const mins = parseMinutes(j.service_time);
-                    const heightPx = ((j.duration ?? 60) / 60) * 56;
+                    const heightPx = ((j.duration ?? 60) / 60) * 80;
                     return (
                     <button key={j.id} data-job-btn type="button" onClick={(ev) => { ev.stopPropagation(); onEditJob(j); }}
-                      className={`absolute inset-x-1 text-left text-xs px-2 py-1 rounded flex items-center gap-2 z-10 ${j.color ? "" : "bg-primary/15 text-primary"}`}
+                      className={`absolute inset-x-1.5 text-left text-sm px-3 py-1.5 rounded overflow-hidden z-10 ${jc ? "" : "bg-primary/15 text-primary"}`}
                       style={{
-                        top: `${(mins / 60) * 56}px`,
+                        top: `${(mins / 60) * 80}px`,
                         height: `${heightPx}px`,
-                        ...(j.color ? { backgroundColor: j.color + "26", color: j.color } : {}),
+                        ...(jc ? { backgroundColor: jc + "26", color: jc } : {}),
                       }}
                     >
-                      <span className="font-medium w-12 shrink-0">{j.service_time.slice(0, 5)}</span>
-                      <span className="flex-1 min-w-0 truncate">{j.name}</span>
-                      <span className="shrink-0 opacity-70">${Number(j.service_value).toFixed(0)}</span>
+                      <div className="font-semibold truncate">{j.service_time.slice(0, 5)} · ${Number(j.service_value).toFixed(0)}</div>
+                      <div className="truncate opacity-90">{j.name}</div>
                     </button>
                     );
                   })}

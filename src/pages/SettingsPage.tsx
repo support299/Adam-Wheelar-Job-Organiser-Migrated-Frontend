@@ -93,6 +93,10 @@ function StaffPanel() {
             <Card key={s.id} className="p-3 flex items-start justify-between gap-3 hover:shadow-sm transition-shadow">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
+                  <span
+                    className="w-3 h-3 rounded-full shrink-0 border"
+                    style={s.color ? { backgroundColor: s.color, borderColor: s.color } : { backgroundColor: "transparent", borderColor: "#d1d5db" }}
+                  />
                   <span className="font-medium truncate">{s.name}</span>
                   <Badge variant="outline" className={s.role === "admin" ? "bg-primary/10 text-primary border-primary/30" : "bg-muted text-muted-foreground"}>{s.role}</Badge>
                   {!s.active && <Badge variant="outline" className="bg-amber-500/15 text-amber-700 border-amber-500/30">Inactive</Badge>}
@@ -113,7 +117,7 @@ function StaffPanel() {
 }
 
 function StaffDialog({ open, onOpenChange, staff }: { open: boolean; onOpenChange: (v: boolean) => void; staff: Staff | null }) {
-  const empty = useMemo<StaffInsert>(() => ({ name: "", email: null, phone: null, role: "user", active: true }), []);
+  const empty = useMemo<StaffInsert>(() => ({ name: "", email: null, phone: null, role: "user", active: true, color: null }), []);
   const [form, setForm] = useState<StaffInsert>(empty);
   const [password, setPassword] = useState("");
   const [createStaff] = useCreateStaffMutation();
@@ -124,7 +128,7 @@ function StaffDialog({ open, onOpenChange, staff }: { open: boolean; onOpenChang
 
   useEffect(() => {
     if (open) {
-      setForm(staff ? { name: staff.name, email: staff.email, phone: staff.phone, role: staff.role, active: staff.active } : empty);
+      setForm(staff ? { name: staff.name, email: staff.email, phone: staff.phone, role: staff.role, active: staff.active, color: staff.color ?? null } : empty);
       setPassword("");
       setShowPassword(false);
     }
@@ -139,7 +143,7 @@ function StaffDialog({ open, onOpenChange, staff }: { open: boolean; onOpenChang
     }
     try {
       setSaving(true);
-      const body: StaffUpdate = { name: form.name, email: form.email, phone: form.phone, role: form.role, active: form.active };
+      const body: StaffUpdate = { name: form.name, email: form.email, phone: form.phone, role: form.role, active: form.active, color: form.color };
       if (staff) {
         await updateStaff({ id: staff.id, body }).unwrap();
         toast.success("Staff updated");
@@ -208,6 +212,33 @@ function StaffDialog({ open, onOpenChange, staff }: { open: boolean; onOpenChang
             </div>
           </div>
           <p className="text-xs text-muted-foreground">Only staff with the <strong>User</strong> role appear in the job assignment dropdown.</p>
+          <div className="grid gap-1.5">
+            <Label>Colour</Label>
+            <div className="flex items-center gap-2 flex-wrap">
+              {["#3b82f6","#10b981","#f59e0b","#ef4444","#8b5cf6","#ec4899"].map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, color: c }))}
+                  className="w-6 h-6 rounded-full border-2 transition-transform hover:scale-110"
+                  style={{ backgroundColor: c, borderColor: form.color === c ? "#000" : "transparent" }}
+                  title={c}
+                />
+              ))}
+              <input
+                type="color"
+                value={form.color ?? "#3b82f6"}
+                onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}
+                className="w-6 h-6 rounded cursor-pointer border p-0"
+                title="Custom colour"
+              />
+              {form.color && (
+                <button type="button" onClick={() => setForm((f) => ({ ...f, color: null }))} className="text-xs text-muted-foreground hover:text-foreground">
+                  Reset
+                </button>
+              )}
+            </div>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

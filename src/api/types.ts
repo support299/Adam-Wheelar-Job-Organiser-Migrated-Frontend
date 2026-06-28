@@ -20,7 +20,6 @@ export type Job = {
   sale_date: string | null;
   call_status: string | null;
   calls_made: number;
-  color: string | null;
   duration: number;
   parent_job_id: string | null;
   occurrence_index: number | null;
@@ -81,6 +80,7 @@ export type Staff = {
   phone: string | null;
   role: "admin" | "user";
   active: boolean;
+  color: string | null;
   has_login: boolean;
   created_at: string;
 };
