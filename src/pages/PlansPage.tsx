@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { useDispatch } from "react-redux";
-import { clearCredentials } from "@/store/authSlice";
+import { useDispatch, useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
+import { clearCredentials, selectIsAdmin, selectStaffId } from "@/store/authSlice";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,16 +17,16 @@ import {
 } from "@/components/ui/dialog";
 import {
   MapPin, Trash2, Users, CalendarClock, Phone, Navigation, Mail,
-  Package, ChevronDown, ChevronRight, Pencil, ArrowUp, ArrowDown, X, LogOut,
+  Package, ChevronDown, ChevronRight, Pencil, ArrowUp, ArrowDown, X, LogOut, Home,
 } from "lucide-react";
 import { toast } from "sonner";
 import { JobFormDialog } from "@/components/jobs/JobFormDialog";
 import { JOB_PROGRESS_LABELS, JOB_PROGRESS_REQUIRES_NOTES, type JobProgressStatus } from "@/lib/jobProgress";
 import { todayIso } from "@/lib/week";
 import type { Job, JobInsert, SavedPlan, BaseLocation, Staff, JobProgress, JobProductLine, SavedPlanUpdate } from "@/api/types";
-import { useListPlansQuery, useDeletePlanMutation, useUpdatePlanMutation, useListJobProgressQuery, useUpsertJobProgressMutation } from "@/api/plansApi";
-import { useListStaffQuery, useListJobStaffQuery } from "@/api/staffApi";
-import { useListJobsQuery, useUpdateJobMutation, useSetJobProductsMutation, useSetJobStaffMutation, useListAllJobProductsQuery } from "@/api/jobsApi";
+import { useListPlansQuery, useDeletePlanMutation, useUpdatePlanMutation, useUpsertJobProgressMutation } from "@/api/plansApi";
+import { useListStaffQuery } from "@/api/staffApi";
+import { useUpdateJobMutation, useSetJobProductsMutation, useSetJobStaffMutation, useListAllJobProductsQuery } from "@/api/jobsApi";
 import { useListProductsQuery } from "@/api/productsApi";
 import { useListBaseLocationsQuery } from "@/api/locationsApi";
 
@@ -43,22 +44,13 @@ function mapsUrl(j: Job): string {
 
 export function PlansPage() {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const isAdmin = useSelector(selectIsAdmin);
+  const currentStaffId = useSelector(selectStaffId);
 
   function handleLogout() {
     dispatch(clearCredentials());
   }
-
-  const { data: plans = [], isLoading } = useListPlansQuery();
-  const { data: staff = [] } = useListStaffQuery();
-  const { data: jobs = [] } = useListJobsQuery();
-  const { data: products = [] } = useListProductsQuery();
-  const { data: allJobStaff = [] } = useListJobStaffQuery();
-  const { data: allJobProducts = [] } = useListAllJobProductsQuery();
-  const { data: bases = [] } = useListBaseLocationsQuery();
-  const [deletePlan] = useDeletePlanMutation();
-  const [updateJob] = useUpdateJobMutation();
-  const [setJobProducts] = useSetJobProductsMutation();
-  const [setJobStaff] = useSetJobStaffMutation();
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [dateFrom, setDateFrom] = useState(todayIso());
@@ -68,17 +60,19 @@ export function PlansPage() {
   const [editingPlan, setEditingPlan] = useState<SavedPlan | null>(null);
   const [editingJob, setEditingJob] = useState<Job | null>(null);
 
-  const jobById = useMemo(() => {
-    const m = new Map<string, Job>();
-    for (const j of jobs) m.set(j.id, j);
-    return m;
-  }, [jobs]);
-
-  const jobStaffMap = useMemo(() => {
-    const m: Record<string, string[]> = {};
-    for (const r of allJobStaff) (m[r.job_id] ??= []).push(r.staff_id);
-    return m;
-  }, [allJobStaff]);
+  const { data: plans = [], isLoading } = useListPlansQuery({
+    dateFrom,
+    dateTo,
+    staffId: staffFilter !== "all" ? staffFilter : undefined,
+  });
+  const { data: staff = [] } = useListStaffQuery();
+  const { data: products = [] } = useListProductsQuery();
+  const { data: allJobProducts = [] } = useListAllJobProductsQuery();
+  const { data: bases = [] } = useListBaseLocationsQuery();
+  const [deletePlan] = useDeletePlanMutation();
+  const [updateJob] = useUpdateJobMutation();
+  const [setJobProducts] = useSetJobProductsMutation();
+  const [setJobStaff] = useSetJobStaffMutation();
 
   const jobProductsMap = useMemo(() => {
     const m: Record<string, Array<{ product_id: string; quantity: number; unit_price: number }>> = {};
@@ -91,15 +85,9 @@ export function PlansPage() {
   const staffName = (id: string) => staff.find((s) => s.id === id)?.name ?? "Unknown";
   const productName = (id: string) => products.find((p) => p.id === id)?.name ?? "Product";
   const assignableStaff = staff.filter((s) => s.role === "user" && s.active);
-
-  const filtered = useMemo(() => {
-    return plans.filter((p) => {
-      if (dateFrom && p.plan_date < dateFrom) return false;
-      if (dateTo && p.plan_date > dateTo) return false;
-      if (staffFilter !== "all" && !(p.staff_ids ?? []).includes(staffFilter)) return false;
-      return true;
-    });
-  }, [plans, dateFrom, dateTo, staffFilter]);
+  const visibleStaff = isAdmin
+    ? assignableStaff
+    : assignableStaff.filter((s) => s.id === currentStaffId);
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this plan?")) return;
@@ -117,7 +105,12 @@ export function PlansPage() {
             <h1 className="text-lg sm:text-xl font-semibold tracking-tight">Saved Plans</h1>
             <p className="text-[11px] sm:text-xs text-muted-foreground">Optimized daily route plans</p>
           </div>
-          <Button variant="outline" size="sm" onClick={handleLogout}>
+          {isAdmin && (
+            <Button variant="outline" size="icon" className="cursor-pointer" onClick={() => navigate("/")}>
+              <Home className="h-4 w-4" />
+            </Button>
+          )}
+          <Button variant="outline" size="sm" className="cursor-pointer" onClick={handleLogout}>
             <LogOut className="h-4 w-4 mr-1" />Logout
           </Button>
         </div>
@@ -139,7 +132,7 @@ export function PlansPage() {
               <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All staff</SelectItem>
-                {assignableStaff.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                {visibleStaff.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -159,13 +152,14 @@ export function PlansPage() {
 
         {isLoading ? (
           <div className="text-sm text-muted-foreground py-12 text-center">Loading…</div>
-        ) : filtered.length === 0 ? (
+        ) : plans.length === 0 ? (
           <Card className="p-12 text-center text-muted-foreground">No saved plans match the filters.</Card>
         ) : (
           <div className="grid gap-2">
-            {filtered.map((p) => {
+            {plans.map((p) => {
               const orderedIds = (p.ordered_job_ids ?? []) as string[];
               const sids = (p.staff_ids ?? []) as string[];
+              const planJobById = new Map((p.jobs ?? []).map((j) => [j.id, j]));
               return (
                 <Card key={p.id} className="p-2 sm:p-3 overflow-hidden">
                   <div className="flex items-start justify-between gap-2 sm:gap-3 min-w-0">
@@ -195,8 +189,8 @@ export function PlansPage() {
                         <PlanJobList
                           planId={p.id}
                           orderedIds={orderedIds}
-                          jobById={jobById}
-                          jobStaffMap={jobStaffMap}
+                          jobById={planJobById}
+                          progressRows={p.progress ?? []}
                           jobProductsMap={jobProductsMap}
                           staffName={staffName}
                           productName={productName}
@@ -225,7 +219,7 @@ export function PlansPage() {
         plan={editingPlan}
         onOpenChange={(o) => !o && setEditingPlan(null)}
         staff={assignableStaff}
-        jobs={jobs}
+        jobs={editingPlan?.jobs ?? []}
         bases={bases}
       />
 
@@ -249,13 +243,13 @@ export function PlansPage() {
 }
 
 function PlanJobList({
-  planId, orderedIds, jobById, jobStaffMap, jobProductsMap, staffName, productName,
+  planId, orderedIds, jobById, progressRows, jobProductsMap, staffName, productName,
   expanded, setExpanded, onEditJob,
 }: {
   planId: string;
   orderedIds: string[];
   jobById: Map<string, Job>;
-  jobStaffMap: Record<string, string[]>;
+  progressRows: JobProgress[];
   jobProductsMap: Record<string, Array<{ product_id: string; quantity: number; unit_price: number }>>;
   staffName: (id: string) => string;
   productName: (id: string) => string;
@@ -263,7 +257,6 @@ function PlanJobList({
   setExpanded: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   onEditJob: (j: Job) => void;
 }) {
-  const { data: progressRows = [] } = useListJobProgressQuery(planId);
 
   const progressMap = useMemo(() => {
     const m: Record<string, JobProgress[]> = {};
@@ -282,7 +275,7 @@ function PlanJobList({
         const isOpen = !!expanded[key];
         const lines = j ? (jobProductsMap[j.id] ?? []) : [];
         const linesTotal = lines.reduce((sum, l) => sum + l.quantity * l.unit_price, 0);
-        const jStaffIds = j ? (jobStaffMap[j.id] ?? []) : [];
+        const jStaffIds = j ? (j.staff_ids ?? []) : [];
         const jobProgress = progressMap[`${planId}:${jid}`] ?? [];
         return (
           <li key={key} className="rounded border bg-card min-w-0 overflow-hidden">
@@ -335,7 +328,7 @@ function PlanJobList({
                 <div className="flex items-center gap-1 text-muted-foreground flex-wrap">
                   <Users className="h-3 w-3" />
                   <span className="font-medium text-foreground">Assigned:</span>
-                  {jStaffIds.length === 0 ? <span>Unassigned</span> : jStaffIds.map((sid, k) => (
+                  {jStaffIds.length === 0 ? <span>Unassigned</span> : jStaffIds.map((sid: string, k: number) => (
                     <span key={sid}>{staffName(sid)}{k < jStaffIds.length - 1 ? "," : ""}</span>
                   ))}
                 </div>
@@ -365,7 +358,7 @@ function PlanJobList({
                 {jStaffIds.length > 0 && (
                   <div className="border-t pt-2 space-y-3">
                     <div className="font-medium text-foreground">Staff progress</div>
-                    {jStaffIds.map((sid) => {
+                    {jStaffIds.map((sid: string) => {
                       const pr = jobProgress.find((x) => x.staff_id === sid);
                       return (
                         <AdminProgressEditor

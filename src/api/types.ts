@@ -129,11 +129,13 @@ export type SavedPlan = {
   notes: string | null;
   legs: unknown;
   total_km: number;
+  jobs: Job[];
+  progress: JobProgress[];
   created_at: string;
   updated_at: string;
 };
 
-export type SavedPlanInsert = Omit<SavedPlan, "id" | "created_at" | "updated_at">;
+export type SavedPlanInsert = Omit<SavedPlan, "id" | "created_at" | "updated_at" | "jobs" | "progress">;
 export type SavedPlanUpdate = Partial<SavedPlanInsert>;
 
 export type JobProgress = {

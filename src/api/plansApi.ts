@@ -3,8 +3,14 @@ import type { SavedPlan, SavedPlanInsert, SavedPlanUpdate, JobProgress } from ".
 
 export const plansApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
-    listPlans: build.query<SavedPlan[], void>({
-      query: () => "/plans/?ordering=-plan_date",
+    listPlans: build.query<SavedPlan[], { dateFrom?: string; dateTo?: string; staffId?: string }>({
+      query: ({ dateFrom, dateTo, staffId } = {}) => {
+        const params = new URLSearchParams({ ordering: "-plan_date" });
+        if (dateFrom) params.set("date_from", dateFrom);
+        if (dateTo) params.set("date_to", dateTo);
+        if (staffId) params.set("staff_id", staffId);
+        return `/plans/?${params.toString()}`;
+      },
       providesTags: (result) =>
         result
           ? [...result.map(({ id }) => ({ type: "Plan" as const, id })), { type: "Plan", id: "LIST" }]
@@ -23,18 +29,18 @@ export const plansApi = baseApi.injectEndpoints({
       invalidatesTags: [{ type: "Plan", id: "LIST" }],
     }),
     listJobProgress: build.query<JobProgress[], string>({
-      query: (planId) => `/progress/?plan_id=${planId}`,
+      query: (planId) => `/job-progress/?plan=${planId}`,
       providesTags: [{ type: "JobProgress", id: "LIST" }],
     }),
     listAllJobProgress: build.query<JobProgress[], void>({
-      query: () => "/progress/",
+      query: () => "/job-progress/",
       providesTags: [{ type: "JobProgress", id: "LIST" }],
     }),
     upsertJobProgress: build.mutation<
       JobProgress,
       { plan_id: string; job_id: string; staff_id: string; status: string; actual_km?: number | null; notes?: string | null }
     >({
-      query: (body) => ({ url: "/progress/upsert/", method: "POST", body }),
+      query: (body) => ({ url: "/job-progress/upsert/", method: "POST", body }),
       invalidatesTags: [{ type: "JobProgress", id: "LIST" }],
     }),
   }),

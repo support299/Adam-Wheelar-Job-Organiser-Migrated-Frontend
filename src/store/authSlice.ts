@@ -18,15 +18,23 @@ function extractIsAdmin(token: string | null): boolean | null {
   return typeof payload.is_admin === "boolean" ? payload.is_admin : null;
 }
 
+function extractStaffId(token: string | null): string | null {
+  if (!token) return null;
+  const payload = decodeJwt(token);
+  return typeof payload.staff_id === "string" ? payload.staff_id : null;
+}
+
 interface AuthState {
   accessToken: string | null;
   isAdmin: boolean | null;
+  staffId: string | null;
 }
 
 const storedToken = localStorage.getItem(ACCESS_KEY);
 const initialState: AuthState = {
   accessToken: storedToken,
   isAdmin: extractIsAdmin(storedToken),
+  staffId: extractStaffId(storedToken),
 };
 
 const authSlice = createSlice({
@@ -36,6 +44,7 @@ const authSlice = createSlice({
     setCredentials(state, action: PayloadAction<{ accessToken: string; refreshToken?: string }>) {
       state.accessToken = action.payload.accessToken;
       state.isAdmin = extractIsAdmin(action.payload.accessToken);
+      state.staffId = extractStaffId(action.payload.accessToken);
       localStorage.setItem(ACCESS_KEY, action.payload.accessToken);
       if (action.payload.refreshToken) {
         localStorage.setItem(REFRESH_KEY, action.payload.refreshToken);
@@ -44,6 +53,7 @@ const authSlice = createSlice({
     clearCredentials(state) {
       state.accessToken = null;
       state.isAdmin = null;
+      state.staffId = null;
       localStorage.removeItem(ACCESS_KEY);
       localStorage.removeItem(REFRESH_KEY);
     },
@@ -53,4 +63,5 @@ const authSlice = createSlice({
 export { REFRESH_KEY };
 export const { setCredentials, clearCredentials } = authSlice.actions;
 export const selectIsAdmin = (s: RootState) => s.auth.isAdmin;
+export const selectStaffId = (s: RootState) => s.auth.staffId;
 export default authSlice.reducer;

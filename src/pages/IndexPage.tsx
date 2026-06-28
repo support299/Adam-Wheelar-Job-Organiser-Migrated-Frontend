@@ -48,7 +48,7 @@ import { useListContactNotesByJobIdQuery } from "@/api/contactsApi";
 import { useListStaffQuery } from "@/api/staffApi";
 import { useListBaseLocationsQuery } from "@/api/locationsApi";
 import { useGetDistanceMatrixMutation } from "@/api/mapsApi";
-import { useCreatePlanMutation } from "@/api/plansApi";
+import { useCreatePlanMutation, useListPlansQuery } from "@/api/plansApi";
 import { JobFormDialog } from "@/components/jobs/JobFormDialog";
 import { JobMap } from "@/components/jobs/JobMap";
 import { optimizeOrder } from "@/lib/directions";
@@ -890,6 +890,13 @@ function DailyPlanner({
   const [saveOpen, setSaveOpen] = useState(false);
   const [planName, setPlanName] = useState("");
   const [savingPlan, setSavingPlan] = useState(false);
+  const [autoLoadedPlanId, setAutoLoadedPlanId] = useState<string | null>(null);
+
+  const { data: existingPlans = [] } = useListPlansQuery(
+    { dateFrom: selectedDate, dateTo: selectedDate, staffId: staffFilter !== "all" ? staffFilter : undefined },
+    { skip: !selectedDate },
+  );
+  const existingPlan = existingPlans[0] ?? null;
 
   // Default base on first load
   useEffect(() => {
@@ -932,8 +939,31 @@ function DailyPlanner({
     setSelectedIds(new Set());
     setOrderedIds([]);
     setRouteStats(null);
+    setAutoLoadedPlanId(null);
+    setPlanName("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);
+
+  // Auto-load existing plan for selected date
+  useEffect(() => {
+    if (!existingPlan || existingPlan.id === autoLoadedPlanId) return;
+    const ids = existingPlan.ordered_job_ids ?? [];
+    setSelectedIds(new Set(ids));
+    setOrderedIds(ids);
+    setPlanName(existingPlan.name);
+    if (existingPlan.base_id) setBaseId(existingPlan.base_id);
+    if (existingPlan.route_shape) setRouteShape(existingPlan.route_shape as "round" | "oneway");
+    if (existingPlan.optimize_metric) setOptimizeMetric(existingPlan.optimize_metric as "time" | "distance");
+    if (existingPlan.road_km != null && existingPlan.road_minutes != null) {
+      setRouteStats({
+        roadKm: Number(existingPlan.road_km),
+        roadMinutes: existingPlan.road_minutes,
+        legs: (existingPlan.legs as { distanceKm: number; minutes: number }[]) ?? [],
+      });
+    }
+    setAutoLoadedPlanId(existingPlan.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingPlan]);
 
   const selectedJobs = useMemo(() => dayJobs.filter((j) => selectedIds.has(j.id)), [dayJobs, selectedIds]);
 
@@ -1157,7 +1187,7 @@ function DailyPlanner({
           </Button>
 
           {routeStats && orderedJobs.length > 0 && (
-            <Button variant="secondary" className="w-full" onClick={() => { setPlanName(`${selectedDate} · ${selectedBase?.name ?? "Plan"}`); setSaveOpen(true); }}>
+            <Button variant="secondary" className="w-full" onClick={() => { setPlanName((prev) => prev || `${selectedDate} · ${selectedBase?.name ?? "Plan"}`); setSaveOpen(true); }}>
               Save Plan
             </Button>
           )}
@@ -1288,6 +1318,11 @@ function DailyPlanner({
               {orderedJobs.length} stop{orderedJobs.length === 1 ? "" : "s"} · {selectedDate}
               {routeStats && <> · {routeStats.roadKm.toFixed(1)} km · ~{routeStats.roadMinutes} min</>}
             </div>
+            {existingPlan && (
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700">
+                A saved plan already exists for this day and will be replaced when you save.
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSaveOpen(false)}>Cancel</Button>
