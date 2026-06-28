@@ -261,7 +261,7 @@ export function JobFormDialog({
         return;
       }
     }
-    if (lineItems.length === 0) {
+    if (!job && lineItems.length === 0) {
       toast.error("Please add at least one product before saving");
       return;
     }

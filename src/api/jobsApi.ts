@@ -1,5 +1,5 @@
 import { baseApi } from "./baseApi";
-import type { Job, JobInsert, JobUpdate, JobProduct, JobProductLine, JobCompletion, JobCompletionInsert } from "./types";
+import type { Job, JobInsert, JobUpdate, JobProduct, JobProductLine, JobCompletion, JobCompletionInsert, PurchaseHistoryRow } from "./types";
 
 export type Paginated<T> = {
   count: number;
@@ -20,10 +20,12 @@ export type ListJobsPagedArgs = {
 
 export const jobsApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
-    listJobs: build.query<Job[], { ghl_contact_id?: string; dateFrom?: string; dateTo?: string } | void>({
+    listJobs: build.query<Job[], { ghl_contact_id?: string; email?: string; search?: string; dateFrom?: string; dateTo?: string } | void>({
       query: (args) => {
         const params = new URLSearchParams({ ordering: "service_date,service_time" });
         if (args?.ghl_contact_id) params.set("ghl_contact_id", args.ghl_contact_id);
+        if (args?.email) params.set("email", args.email);
+        if (args?.search) params.set("search", args.search);
         if (args?.dateFrom) params.set("service_date_from", args.dateFrom);
         if (args?.dateTo) params.set("service_date_to", args.dateTo);
         return `/jobs/?${params.toString()}`;
@@ -105,6 +107,10 @@ export const jobsApi = baseApi.injectEndpoints({
         { type: "Job", id: jobId },
       ],
     }),
+    listPurchaseHistory: build.query<PurchaseHistoryRow[], { email?: string; ghl_contact_id?: string }>({
+      query: (params) => ({ url: '/jobs/purchase-history/', params }),
+      providesTags: [{ type: 'Job', id: 'PURCHASE-HISTORY' }],
+    }),
     listJobCompletions: build.query<JobCompletion[], void>({
       query: () => "/completions/?ordering=-completed_at",
       providesTags: [{ type: "Job", id: "COMPLETIONS" }],
@@ -139,6 +145,8 @@ export const {
   useSetJobProductsMutation,
   useGetJobStaffQuery,
   useSetJobStaffMutation,
+  useListPurchaseHistoryQuery,
+  useLazyListPurchaseHistoryQuery,
   useListJobCompletionsQuery,
   useCreateJobCompletionMutation,
   useUpdateJobCompletionMutation,

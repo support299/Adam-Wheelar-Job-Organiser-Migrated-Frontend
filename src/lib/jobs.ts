@@ -123,15 +123,14 @@ export const DUE_TAG_LABELS: Record<DueTag, string> = {
   due_60: "Service Due in 60 Days",
 };
 
-export function getDueTagLabel(tag: DueTag, serviceType?: string | null): string {
+export function getDueTagLabel(tag: DueTag, serviceType?: string | null, days?: number): string {
   const prefix = serviceType === "installation" ? "Installation" : "Service";
-  switch (tag) {
-    case "overdue": return `${prefix} Overdue`;
-    case "due_7":   return `${prefix} Due in 07 Days`;
-    case "due_15":  return `${prefix} Due in 15 Days`;
-    case "due_30":  return `${prefix} Due in 30 Days`;
-    case "due_60":  return `${prefix} Due in 60 Days`;
-  }
+  if (tag === "overdue") return `${prefix} Overdue`;
+  if (days === 0) return `${prefix} Due Today`;
+  if (days === 1) return `${prefix} Due Tomorrow`;
+  if (days !== undefined) return `${prefix} Due in ${days} Days`;
+  const fallback = tag === "due_7" ? 7 : tag === "due_15" ? 15 : tag === "due_30" ? 30 : 60;
+  return `${prefix} Due in ${fallback} Days`;
 }
 
 export function daysUntil(dateStr: string): number {

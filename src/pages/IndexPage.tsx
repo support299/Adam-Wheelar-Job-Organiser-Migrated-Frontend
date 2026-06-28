@@ -1601,7 +1601,8 @@ export function IndexPage() {
                             )}
                             {(() => {
                               const t = getDueTag(job);
-                              return t ? <Badge variant="outline" className={dueTagBadgeClass(t)}>{getDueTagLabel(t, job.service_type)}</Badge> : null;
+                              const d = daysUntil(job.service_date);
+                              return t ? <Badge variant="outline" className={dueTagBadgeClass(t)}>{getDueTagLabel(t, job.service_type, d)}</Badge> : null;
                             })()}
                             <span className="text-xs text-muted-foreground">
                               {job.service_time.slice(0, 5)} · ${Number(job.service_value).toFixed(2)}

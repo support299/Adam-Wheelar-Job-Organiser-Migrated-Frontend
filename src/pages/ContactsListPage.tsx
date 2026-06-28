@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,9 @@ export type ContactGroup = {
 export function groupJobsByContact(jobs: Job[]): ContactGroup[] {
   const norm = (s: string | null | undefined) =>
     (s ?? "").trim().toLowerCase().replace(/\s+/g, "");
+  // Strip everything except digits so +19024359759 and 19024359759 match
+  const normPhone = (s: string | null | undefined) =>
+    (s ?? "").replace(/\D/g, "");
 
   const parent = new Map<string, string>();
   const find = (x: string): string => {
@@ -41,7 +44,7 @@ export function groupJobsByContact(jobs: Job[]): ContactGroup[] {
   const jobKeys = new Map<string, string>();
   for (const j of jobs) {
     const e = norm(j.email);
-    const p = norm(j.phone);
+    const p = normPhone(j.phone);
     const tokens: string[] = [];
     if (e) tokens.push("e:" + e);
     if (p) tokens.push("p:" + p);
@@ -104,21 +107,20 @@ export function contactKeyForJob(j: {
 }
 
 export function ContactsListPage() {
-  const { data: jobs = [], isLoading } = useListJobsQuery();
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const { data: jobs = [], isLoading } = useListJobsQuery(
+    { search: debouncedSearch },
+    { skip: !debouncedSearch },
+  );
 
   const contacts = useMemo(() => groupJobsByContact(jobs), [jobs]);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return contacts;
-    return contacts.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        c.emails.some((e) => e.toLowerCase().includes(q)) ||
-        c.phones.some((p) => p.toLowerCase().includes(q)),
-    );
-  }, [contacts, search]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -129,7 +131,7 @@ export function ContactsListPage() {
           </Button>
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Job History</h1>
-            <p className="text-xs text-muted-foreground">Browse contacts and their past sales & services</p>
+            <p className="text-xs text-muted-foreground">Search contacts by name, email, or phone</p>
           </div>
         </div>
       </header>
@@ -142,16 +144,21 @@ export function ContactsListPage() {
             placeholder="Search by name, email, or phone"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            autoFocus
           />
         </div>
 
-        {isLoading ? (
+        {!debouncedSearch ? (
+          <Card className="p-12 text-center text-muted-foreground">
+            Type a name, email, or phone number to find contacts.
+          </Card>
+        ) : isLoading ? (
           <div className="text-sm text-muted-foreground py-12 text-center">Loading…</div>
-        ) : filtered.length === 0 ? (
-          <Card className="p-12 text-center text-muted-foreground">No contacts yet.</Card>
+        ) : contacts.length === 0 ? (
+          <Card className="p-12 text-center text-muted-foreground">No contacts found for "{debouncedSearch}".</Card>
         ) : (
           <div className="grid gap-2">
-            {filtered.map((c) => (
+            {contacts.map((c) => (
               <Link key={c.key} to={`/contacts/${contactIdFromKey(c.key)}`}>
                 <Card className="p-3 flex items-center justify-between gap-3 hover:shadow-sm transition-shadow">
                   <div className="min-w-0 flex-1">

@@ -15,10 +15,10 @@ import { toast } from "sonner";
 import { JobFormDialog } from "@/components/jobs/JobFormDialog";
 import { PurchasesAddresses } from "@/components/contacts/PurchasesAddresses";
 import { ContactActivity } from "@/components/contacts/ContactActivity";
-import { groupJobsByContact, contactIdFromKey } from "./ContactsListPage";
+import { groupJobsByContact } from "./ContactsListPage";
 import { daysUntil, getDueTag, getDueTagLabel, type DueTag, FREQUENCY_LABELS, type RecurrenceFrequency } from "@/lib/jobs";
 import type { Job, JobInsert, JobCompletion, JobProductLine } from "@/api/types";
-import { useListJobsQuery, useUpdateJobMutation, useDeleteJobMutation, useSetJobProductsMutation, useSetJobStaffMutation, useListAllJobProductsQuery, useListJobCompletionsQuery, useUpdateJobCompletionMutation, useDeleteJobCompletionMutation } from "@/api/jobsApi";
+import { useListJobsQuery, useUpdateJobMutation, useDeleteJobMutation, useSetJobProductsMutation, useSetJobStaffMutation, useListAllJobProductsQuery, useLazyListPurchaseHistoryQuery, useListJobCompletionsQuery, useUpdateJobCompletionMutation, useDeleteJobCompletionMutation } from "@/api/jobsApi";
 import { useListProductsQuery } from "@/api/productsApi";
 import { useListStaffQuery, useListJobStaffQuery } from "@/api/staffApi";
 
@@ -44,12 +44,37 @@ export function ContactDetailPage() {
   const { contactId } = useParams<{ contactId: string }>();
   const decodedId = contactId ? decodeURIComponent(contactId) : "";
 
-  const { data: allJobs = [], isLoading } = useListJobsQuery();
+  // Derive a server-side filter from the contact key so we only fetch this
+  // contact's jobs instead of the entire jobs table.
+  // e: prefix → email key; p: prefix → phone-only (no exact filter available).
+  const jobFilter = decodedId.startsWith("e:")
+    ? { email: decodedId.slice(2) }
+    : undefined;
+
+  const { data: allJobs = [], isLoading } = useListJobsQuery(jobFilter);
   const { data: products = [] } = useListProductsQuery();
   const { data: staff = [] } = useListStaffQuery();
   const { data: allJobStaff = [] } = useListJobStaffQuery();
   const { data: allJobProducts = [] } = useListAllJobProductsQuery();
   const { data: completions = [] } = useListJobCompletionsQuery();
+
+  // Derived early so phone-keyed contacts can fall back to their first job email
+  const contact = useMemo(() => {
+    const groups = groupJobsByContact(allJobs);
+    return groups.find((g) => g.key === decodedId) ?? null;
+  }, [allJobs, decodedId]);
+
+  // email-keyed: filter is available immediately
+  // phone-keyed: derive ghl_contact_id from first job once contact loads
+  const purchaseParam = useMemo(() => {
+    if (jobFilter) return jobFilter;
+    const ghlId = contact?.jobs[0]?.ghl_contact_id;
+    if (ghlId) return { ghl_contact_id: ghlId };
+    if (contact?.emails.length) return { email: contact.emails[0] };
+    return null;
+  }, [jobFilter, contact]);
+
+  const [fetchPurchaseHistory, { data: purchaseHistory = [] }] = useLazyListPurchaseHistoryQuery();
   const [updateJob] = useUpdateJobMutation();
   const [deleteJob] = useDeleteJobMutation();
   const [setJobProducts] = useSetJobProductsMutation();
@@ -72,11 +97,6 @@ export function ContactDetailPage() {
     for (const p of allJobProducts) (m[p.job_id] ??= []).push(p as JobProductRow);
     return m;
   }, [allJobProducts]);
-
-  const contact = useMemo(() => {
-    const groups = groupJobsByContact(allJobs);
-    return groups.find((g) => contactIdFromKey(g.key) === contactId) ?? null;
-  }, [allJobs, contactId]);
 
   const contactCompletions = useMemo(() => {
     if (!contact) return [];
@@ -201,7 +221,7 @@ export function ContactDetailPage() {
         )}
 
         {contact && (
-          <Tabs defaultValue="history" className="space-y-4">
+          <Tabs defaultValue="history" className="space-y-4" onValueChange={(tab) => { if (tab === "purchases" && purchaseParam) fetchPurchaseHistory(purchaseParam); }}>
             <TabsList>
               <TabsTrigger value="history">History</TabsTrigger>
               <TabsTrigger value="purchases">Purchases & Addresses</TabsTrigger>
@@ -305,7 +325,7 @@ export function ContactDetailPage() {
                                     {FREQUENCY_LABELS[job.frequency as RecurrenceFrequency]}
                                   </Badge>
                                 )}
-                                {tag && <Badge variant="outline" className={dueTagBadgeClass(tag)}>{getDueTagLabel(tag, job.service_type)}</Badge>}
+                                {tag && <Badge variant="outline" className={dueTagBadgeClass(tag)}>{getDueTagLabel(tag, job.service_type, days)}</Badge>}
                               </div>
                               <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
                                 <CalendarClock className="h-3 w-3" />
@@ -359,8 +379,7 @@ export function ContactDetailPage() {
               <PurchasesAddresses
                 jobs={contact.jobs}
                 completions={contactCompletions}
-                jobProducts={jobProducts}
-                products={products}
+                purchaseHistory={purchaseHistory}
                 onDeleteAddress={handleDeleteAddress}
               />
             </TabsContent>

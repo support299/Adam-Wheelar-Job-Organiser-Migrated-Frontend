@@ -211,3 +211,21 @@ export type GhlInstallConfig = {
   locationId: string;
   scopes: string;
 };
+
+export type PurchaseHistoryRow = {
+  id: string;
+  install_date: string;
+  install_status: string;
+  source: "completion" | "job";
+  address: string;
+  product_id: string;
+  product_name: string;
+  quantity: string;
+  unit_price: string;
+  total: string;
+  next_service_date: string | null;
+  next_service_status: string | null;
+  is_recurring: boolean;
+  frequency: string | null;
+  service_complete: boolean;
+};

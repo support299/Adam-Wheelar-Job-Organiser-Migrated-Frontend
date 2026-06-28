@@ -13,9 +13,10 @@ import { Mail, Phone, MapPin, Plus, CalendarClock, Users, Package, Pencil, Trash
 import { toast } from "sonner";
 import { JobFormDialog } from "@/components/jobs/JobFormDialog";
 import { PurchasesAddresses } from "@/components/contacts/PurchasesAddresses";
-import { daysUntil, getDueTag, getDueTagLabel, DUE_TAG_LABELS, type DueTag, FREQUENCY_LABELS, type RecurrenceFrequency, addFrequency } from "@/lib/jobs";
+import { ContactActivity } from "@/components/contacts/ContactActivity";
+import { daysUntil, getDueTag, getDueTagLabel, DUE_TAG_LABELS, type DueTag, FREQUENCY_LABELS, type RecurrenceFrequency } from "@/lib/jobs";
 import type { Job, JobInsert, JobProductLine, JobCompletionInsert } from "@/api/types";
-import { useListJobsQuery, useCreateJobMutation, useUpdateJobMutation, useDeleteJobMutation, useSetJobProductsMutation, useSetJobStaffMutation, useListAllJobProductsQuery, useListJobCompletionsQuery, useDeleteJobCompletionMutation, useCreateJobCompletionMutation } from "@/api/jobsApi";
+import { useListJobsQuery, useCreateJobMutation, useUpdateJobMutation, useDeleteJobMutation, useSetJobProductsMutation, useSetJobStaffMutation, useListAllJobProductsQuery, useLazyListPurchaseHistoryQuery, useListJobCompletionsQuery, useDeleteJobCompletionMutation, useCreateJobCompletionMutation } from "@/api/jobsApi";
 import { useListProductsQuery } from "@/api/productsApi";
 import { useListStaffQuery, useListJobStaffQuery } from "@/api/staffApi";
 import { useListGhlContactsQuery } from "@/api/contactsApi";
@@ -50,6 +51,7 @@ export function ContactJobsPage() {
   const { data: allJobStaff = [] } = useListJobStaffQuery();
   const { data: allJobProducts = [] } = useListAllJobProductsQuery(ghlContactId ? { ghl_contact_id: ghlContactId } : undefined);
   const { data: allCompletions = [] } = useListJobCompletionsQuery();
+  const [fetchPurchaseHistory, { data: purchaseHistory = [] }] = useLazyListPurchaseHistoryQuery();
   const [createJob] = useCreateJobMutation();
   const [updateJob] = useUpdateJobMutation();
   const [deleteJob] = useDeleteJobMutation();
@@ -93,6 +95,18 @@ export function ContactJobsPage() {
     });
   }, [allCompletions, contact]);
 
+  const contactKey = useMemo(() => {
+    if (contact?.email) return `e:${contact.email}`;
+    if (contact?.phone) return `p:${contact.phone.replace(/\D/g, "")}`;
+    return `ghl:${ghlContactId ?? ""}`;
+  }, [contact, ghlContactId]);
+
+  const purchaseParam = useMemo(() => {
+    if (ghlContactId) return { ghl_contact_id: ghlContactId };
+    if (contact?.email) return { email: contact.email };
+    return null;
+  }, [ghlContactId, contact]);
+
   const productName = (id: string) => products.find((p) => p.id === id)?.name ?? "Product";
   const staffName = (id: string) => staff.find((s) => s.id === id)?.name ?? "Unknown";
   const assignableStaff = staff.filter((s) => s.role === "user" && s.active);
@@ -114,8 +128,10 @@ export function ContactJobsPage() {
     const isDone = (s: string | undefined) => s === "completed" || s === "skip";
     const wasCompleted = isDone(editing?.status);
     const nowCompleted = isDone(data.status);
-    let rolledToDate: string | null = null;
     if (editing) {
+      await updateJob({ id: editing.id, body: data }).unwrap();
+      await setJobStaff({ jobId: editing.id, staffIds: extras.staffIds }).unwrap();
+      await setJobProducts({ jobId: editing.id, lines: extras.lineItems }).unwrap();
       if (!wasCompleted && nowCompleted) {
         try {
           const completionBody: JobCompletionInsert = {
@@ -140,18 +156,10 @@ export function ContactJobsPage() {
           toast.error(e instanceof Error ? `Completion not recorded: ${e.message}` : "Completion not recorded");
         }
       }
-      if (!wasCompleted && nowCompleted && data.is_recurring && data.frequency) {
-        rolledToDate = addFrequency(data.service_date, data.frequency as RecurrenceFrequency);
-        await updateJob({ id: editing.id, body: { ...data, service_date: rolledToDate, status: "pending", service_type: "servicing", sale_date: null } }).unwrap();
-      } else {
-        await updateJob({ id: editing.id, body: data }).unwrap();
-      }
-      await setJobStaff({ jobId: editing.id, staffIds: extras.staffIds }).unwrap();
-      await setJobProducts({ jobId: editing.id, lines: extras.lineItems }).unwrap();
     } else {
       await createJob({ ...data, ghl_contact_id: ghlContactId ?? null, staff_ids: extras.staffIds, product_lines: extras.lineItems }).unwrap();
     }
-    toast.success(rolledToDate ? `Recurring job rolled to ${rolledToDate}` : editing ? "Job updated" : "Sale recorded");
+    toast.success(editing ? "Job updated" : "Sale recorded");
   }
 
   async function handleDelete(id: string) {
@@ -196,10 +204,11 @@ export function ContactJobsPage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4">
-        <Tabs defaultValue="jobs" className="space-y-4">
+        <Tabs defaultValue="jobs" className="space-y-4" onValueChange={(tab) => { if (tab === "purchases" && purchaseParam) fetchPurchaseHistory(purchaseParam); }}>
           <TabsList>
             <TabsTrigger value="jobs">Jobs</TabsTrigger>
             <TabsTrigger value="purchases">Purchases & Addresses</TabsTrigger>
+            <TabsTrigger value="activity">Record Activity</TabsTrigger>
           </TabsList>
 
           <TabsContent value="jobs" className="space-y-4">
@@ -279,7 +288,7 @@ export function ContactJobsPage() {
                                 {FREQUENCY_LABELS[job.frequency as RecurrenceFrequency]}
                               </Badge>
                             )}
-                            {tag && <Badge variant="outline" className={dueTagBadgeClass(tag)}>{getDueTagLabel(tag, job.service_type)}</Badge>}
+                            {tag && <Badge variant="outline" className={dueTagBadgeClass(tag)}>{getDueTagLabel(tag, job.service_type, days)}</Badge>}
                           </div>
                           <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
                             <CalendarClock className="h-3 w-3" />
@@ -335,9 +344,16 @@ export function ContactJobsPage() {
             <PurchasesAddresses
               jobs={jobs}
               completions={completions}
-              jobProducts={jobProductsMap}
-              products={products}
+              purchaseHistory={purchaseHistory}
               onDeleteAddress={handleDeleteAddress}
+            />
+          </TabsContent>
+
+          <TabsContent value="activity">
+            <ContactActivity
+              contactKey={contactKey}
+              jobs={jobs}
+              onOpenJob={(j) => { setEditing(j); setDialogOpen(true); }}
             />
           </TabsContent>
         </Tabs>
