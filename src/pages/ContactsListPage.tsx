@@ -45,7 +45,9 @@ export function groupJobsByContact(jobs: Job[]): ContactGroup[] {
   for (const j of jobs) {
     const e = norm(j.email);
     const p = normPhone(j.phone);
+    const g = j.ghl_contact_id?.trim();
     const tokens: string[] = [];
+    if (g) tokens.push("g:" + g);
     if (e) tokens.push("e:" + e);
     if (p) tokens.push("p:" + p);
     if (tokens.length === 0) tokens.push("j:" + j.id);
@@ -96,9 +98,12 @@ export function contactKeyForJob(j: {
   id: string;
   email: string | null;
   phone: string | null;
+  ghl_contact_id?: string | null;
 }): string {
   const norm = (s: string | null | undefined) =>
     (s ?? "").trim().toLowerCase().replace(/\s+/g, "");
+  const g = j.ghl_contact_id?.trim();
+  if (g) return "g:" + g;
   const p = norm(j.phone);
   if (p) return "p:" + p;
   const e = norm(j.email);
