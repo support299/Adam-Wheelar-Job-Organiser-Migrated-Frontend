@@ -106,6 +106,8 @@ export function statusColor(status: string) {
       return "#000000";
     case "scheduled":
       return "#16a34a";
+    case "rescheduled":
+      return "#ea580c";
     case "pending":
       return "#2563eb";
     default:

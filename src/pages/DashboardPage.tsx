@@ -118,7 +118,7 @@ export default function DashboardPage() {
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 8);
     const pipelineValue = filteredJobs
-      .filter((j) => j.status === "pending" || j.status === "scheduled")
+      .filter((j) => j.status === "pending" || j.status === "scheduled" || j.status === "rescheduled")
       .reduce((s, j) => s + Number(j.service_value ?? 0), 0);
     const totalKm = filteredPlans.reduce((s, p) => s + Number(p.total_km ?? 0), 0);
     const activeStaff = staff.filter((s) => s.active).length;
@@ -133,7 +133,7 @@ export default function DashboardPage() {
 
   const upcomingJobs = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
-    return filteredJobs.filter((j) => j.service_date >= today && (j.status === "pending" || j.status === "scheduled")).slice(0, 8);
+    return filteredJobs.filter((j) => j.service_date >= today && (j.status === "pending" || j.status === "scheduled" || j.status === "rescheduled")).slice(0, 8);
   }, [filteredJobs]);
 
   const serviceTypes = useMemo(() => {
@@ -190,7 +190,7 @@ export default function DashboardPage() {
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All statuses</SelectItem>
-                    {["pending", "scheduled", "completed", "skip", "not_interested"].map((s) => (
+                    {["pending", "scheduled", "rescheduled", "completed", "skip", "not_interested"].map((s) => (
                       <SelectItem key={s} value={s}>{s}</SelectItem>
                     ))}
                   </SelectContent>

@@ -660,6 +660,7 @@ export function JobFormDialog({
               <SelectContent>
                 <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="scheduled">Scheduled</SelectItem>
+                <SelectItem value="rescheduled">Rescheduled</SelectItem>
                 <SelectItem value="completed">Completed</SelectItem>
                 <SelectItem value="skip">Skip This Time</SelectItem>
                 <SelectItem value="not_interested">Not Interested Anymore</SelectItem>

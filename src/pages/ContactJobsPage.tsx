@@ -26,6 +26,7 @@ function statusBadgeClass(s: string) {
   if (s === "skip") return "bg-purple-500/15 text-purple-700 border-purple-500/30";
   if (s === "not_interested") return "bg-rose-500/15 text-rose-700 border-rose-500/30";
   if (s === "scheduled") return "bg-blue-500/15 text-blue-700 border-blue-500/30";
+  if (s === "rescheduled") return "bg-orange-500/15 text-orange-700 border-orange-500/30";
   return "bg-amber-500/15 text-amber-700 border-amber-500/30";
 }
 
@@ -221,6 +222,7 @@ export function ContactJobsPage() {
                     <SelectItem value="all">All statuses</SelectItem>
                     <SelectItem value="pending">Pending</SelectItem>
                     <SelectItem value="scheduled">Scheduled</SelectItem>
+                    <SelectItem value="rescheduled">Rescheduled</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
                     <SelectItem value="skip">Skip This Time</SelectItem>
                     <SelectItem value="not_interested">Not Interested Anymore</SelectItem>

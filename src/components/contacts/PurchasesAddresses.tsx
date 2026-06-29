@@ -117,8 +117,8 @@ export function PurchasesAddresses({ jobs, completions, purchaseHistory, onDelet
                     const installDays = daysUntil(r.install_date);
                     const s = r.install_status;
 
-                    // Pending/scheduled install → show install due tag
-                    const showInstallTag = r.source === "job" && (s === "pending" || s === "scheduled");
+                    // Pending/scheduled/rescheduled install → show install due tag
+                    const showInstallTag = r.source === "job" && (s === "pending" || s === "scheduled" || s === "rescheduled");
                     const installTag: DueTag | null = showInstallTag
                       ? getDueTag({ service_date: r.install_date, status: s })
                       : null;

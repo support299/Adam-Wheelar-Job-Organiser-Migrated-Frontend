@@ -18,7 +18,7 @@ import {
   Plus, Pencil, Trash2, MapPin, Sparkles, Search, ArrowUp, ArrowDown,
   CalendarIcon, CalendarClock, Settings as SettingsIcon, Users, History,
   Circle as CircleIcon, ExternalLink, Phone, PhoneCall, Copy, BarChart3, Clock,
-  LogOut,
+  LogOut, RefreshCw,
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -72,6 +72,7 @@ function statusBadgeClass(s: string) {
   if (s === "skip") return "bg-purple-500/15 text-purple-700 border-purple-500/30";
   if (s === "not_interested") return "bg-rose-500/15 text-rose-700 border-rose-500/30";
   if (s === "scheduled") return "bg-blue-500/15 text-blue-700 border-blue-500/30";
+  if (s === "rescheduled") return "bg-orange-500/15 text-orange-700 border-orange-500/30";
   return "bg-amber-500/15 text-amber-700 border-amber-500/30";
 }
 
@@ -139,6 +140,7 @@ function StatusFilter({ value, onChange }: { value: string; onChange: (v: string
         <SelectItem value="all">All statuses</SelectItem>
         <SelectItem value="pending">Pending</SelectItem>
         <SelectItem value="scheduled">Scheduled</SelectItem>
+        <SelectItem value="rescheduled">Rescheduled</SelectItem>
         <SelectItem value="completed">Completed</SelectItem>
         <SelectItem value="skip">Skip This Time</SelectItem>
         <SelectItem value="not_interested">Not Interested Anymore</SelectItem>
@@ -1577,6 +1579,9 @@ export function IndexPage() {
               <StatusFilter value={statusFilter} onChange={setStatusFilter} />
               <DueTagFilter value={dueTagFilter} onChange={setDueTagFilter} />
               <StaffFilter value={staffFilter} onChange={setStaffFilter} staff={staff} />
+              <Button variant="outline" size="icon" onClick={() => void refetchJobsPage()} disabled={jobsPageFetching} title="Refresh">
+                <RefreshCw className={cn("h-4 w-4", jobsPageFetching && "animate-spin")} />
+              </Button>
             </div>
 
             {jobsPageLoading ? (
