@@ -18,10 +18,11 @@ import {
   Plus, Pencil, Trash2, MapPin, Sparkles, Search, ArrowUp, ArrowDown,
   CalendarIcon, CalendarClock, Settings as SettingsIcon, Users, History,
   Circle as CircleIcon, ExternalLink, Phone, PhoneCall, Copy, BarChart3, Clock,
-  LogOut, RefreshCw,
+  LogOut, RefreshCw, ChevronDown,
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -62,6 +63,7 @@ import {
   daysUntil,
   distanceKm,
   estimateMinutes,
+  statusColor,
 } from "@/lib/jobs";
 import { buildGhlContactUrl } from "@/lib/ghlContactUrl";
 
@@ -149,6 +151,51 @@ function StatusFilter({ value, onChange }: { value: string; onChange: (v: string
   );
 }
 
+const CAL_STATUS_OPTIONS = [
+  { value: "pending", label: "Pending" },
+  { value: "scheduled", label: "Scheduled" },
+  { value: "rescheduled", label: "Rescheduled" },
+  { value: "completed", label: "Completed" },
+  { value: "skip", label: "Skip This Time" },
+  { value: "not_interested", label: "Not Interested" },
+];
+
+function CalendarStatusFilter({ values, onChange }: { values: string[]; onChange: (v: string[]) => void }) {
+  const toggle = (v: string) =>
+    onChange(values.includes(v) ? values.filter((s) => s !== v) : [...values, v]);
+  const label =
+    values.length === 0 ? "All statuses" :
+    values.length === 1 ? (CAL_STATUS_OPTIONS.find((o) => o.value === values[0])?.label ?? values[0]) :
+    `${values.length} statuses`;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="w-[150px] justify-between font-normal">
+          <span className="truncate">{label}</span>
+          <ChevronDown className="h-4 w-4 ml-1 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[200px] p-2" align="start">
+        <div className="space-y-0.5">
+          {CAL_STATUS_OPTIONS.map((opt) => (
+            <label key={opt.value} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
+              <Checkbox checked={values.includes(opt.value)} onCheckedChange={() => toggle(opt.value)} />
+              <span>{opt.label}</span>
+            </label>
+          ))}
+        </div>
+        {values.length > 0 && (
+          <div className="mt-1.5 pt-1.5 border-t">
+            <Button variant="ghost" size="sm" className="w-full h-7 text-xs" onClick={() => onChange([])}>
+              Clear
+            </Button>
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function DueTagFilter({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <Select value={value} onValueChange={onChange}>
@@ -213,7 +260,7 @@ function MapCalendar({
 }) {
   const [view, setView] = useState<CalView>("week");
   const [anchor, setAnchor] = useState<Date>(() => new Date());
-  const [statusFilter, setStatusFilter] = useState<string>("scheduled");
+  const [statusFilter, setStatusFilter] = useState<string[]>(["scheduled"]);
   const [staffFilter, setStaffFilter] = useState<string>("all");
   const [useCircle, setUseCircle] = useState(false);
   const [slotPick, setSlotPick] = useState<{ date: Date; hour: number } | null>(null);
@@ -240,7 +287,7 @@ function MapCalendar({
     const startIso = isoDate(range.start);
     const endIso = isoDate(range.end);
     return jobs.filter((j) => {
-      if (statusFilter !== "all" && j.status !== statusFilter) return false;
+      if (statusFilter.length > 0 && !statusFilter.includes(j.status)) return false;
       if (j.service_date < startIso || j.service_date > endIso) return false;
       if (staffFilter !== "all") {
         const ids = jobStaffMap[j.id] ?? [];
@@ -296,7 +343,7 @@ function MapCalendar({
           <div className="font-semibold text-base ml-1">{label}</div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <StatusFilter value={statusFilter} onChange={setStatusFilter} />
+          <CalendarStatusFilter values={statusFilter} onChange={setStatusFilter} />
           <StaffFilter value={staffFilter} onChange={setStaffFilter} staff={staff} />
           <Button
             variant={useCircle ? "default" : "outline"}
@@ -328,7 +375,7 @@ function MapCalendar({
       )}
 
       <div className="text-xs text-muted-foreground mt-3">
-        {filtered.length} {statusFilter === "all" ? "" : `${statusFilter} `}job{filtered.length === 1 ? "" : "s"} in range
+        {filtered.length} {statusFilter.length > 0 ? `${statusFilter.join(", ")} ` : ""}job{filtered.length === 1 ? "" : "s"} in range
         {useCircle && circle ? ` · within ${(circle.radiusMeters / 1000).toFixed(2)} km of drawn circle` : ""}
       </div>
       <AvailableStaffDialog pick={slotPick} onClose={() => setSlotPick(null)} staff={staff} jobs={jobs} jobStaffMap={jobStaffMap} />
@@ -382,6 +429,10 @@ function MonthGrid({
                         {j.service_time.slice(0, 5)}
                       </div>
                       <div className="truncate">{j.name}</div>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: statusColor(j.status) }} />
+                        <span className="text-[10px] capitalize opacity-75 truncate">{j.status}</span>
+                      </div>
                     </button>
                   );
                 })}
@@ -444,21 +495,28 @@ function WeekGrid({
                     }}
                     className="relative border-r last:border-r-0 border-b h-16 hover:bg-accent/40 cursor-pointer overflow-visible"
                   >
-                    {items.map((j) => {
+                    {items.map((j, idx) => {
                       const jc = jobColor(j);
                       const mins = parseMinutes(j.service_time);
                       const heightPx = ((j.duration ?? 60) / 60) * 64;
+                      const n = items.length;
                       return (
                         <button key={j.id} data-job-btn type="button" onClick={(ev) => { ev.stopPropagation(); onEditJob(j); }}
-                          className={`absolute inset-x-0.5 text-left text-sm leading-snug px-2 py-1 rounded overflow-hidden z-10 ${jc ? "" : "bg-primary/15 text-primary"}`}
+                          className={`absolute text-left text-sm leading-snug px-2 py-1 rounded overflow-hidden z-10 ${jc ? "" : "bg-primary/15 text-primary"}`}
                           style={{
                             top: `${(mins / 60) * 64}px`,
                             height: `${heightPx}px`,
+                            left: `calc(${(idx / n) * 100}% + 2px)`,
+                            right: `calc(${((n - idx - 1) / n) * 100}% + 2px)`,
                             ...(jc ? { backgroundColor: jc + "26", color: jc } : {}),
                           }}
                         >
                           <div className="font-semibold truncate">{j.service_time.slice(0, 5)}</div>
                           <div className="truncate">{j.name}</div>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: statusColor(j.status) }} />
+                            <span className="text-[10px] capitalize opacity-75 truncate">{j.status}</span>
+                          </div>
                         </button>
                       );
                     })}
@@ -505,16 +563,19 @@ function DayList({
                   }}
                   className="relative border-b h-20 hover:bg-accent/40 cursor-pointer overflow-visible"
                 >
-                  {items.map((j) => {
+                  {items.map((j, idx) => {
                     const jc = jobColor(j);
                     const mins = parseMinutes(j.service_time);
                     const heightPx = ((j.duration ?? 60) / 60) * 80;
+                    const n = items.length;
                     return (
                     <button key={j.id} data-job-btn type="button" onClick={(ev) => { ev.stopPropagation(); onEditJob(j); }}
-                      className={`absolute inset-x-1.5 text-left text-sm px-3 py-1.5 rounded overflow-hidden z-10 ${jc ? "" : "bg-primary/15 text-primary"}`}
+                      className={`absolute text-left text-sm px-3 py-1.5 rounded overflow-hidden z-10 ${jc ? "" : "bg-primary/15 text-primary"}`}
                       style={{
                         top: `${(mins / 60) * 80}px`,
                         height: `${heightPx}px`,
+                        left: `calc(${(idx / n) * 100}% + 2px)`,
+                        right: `calc(${((n - idx - 1) / n) * 100}% + 2px)`,
                         ...(jc ? { backgroundColor: jc + "26", color: jc } : {}),
                       }}
                     >
