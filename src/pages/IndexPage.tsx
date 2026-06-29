@@ -1071,8 +1071,19 @@ function DailyPlanner({
     if (!planName.trim()) { toast.error("Enter a plan name"); return; }
     if (orderedJobs.length === 0) { toast.error("No route to save"); return; }
     const staffIdSet = new Set<string>();
+    let hasUnassigned = false;
     for (const j of orderedJobs) {
-      for (const sid of jobStaffMap[j.id] ?? []) staffIdSet.add(sid);
+      const ids = jobStaffMap[j.id] ?? [];
+      if (ids.length === 0) hasUnassigned = true;
+      for (const sid of ids) staffIdSet.add(sid);
+    }
+    if (staffIdSet.size > 1) {
+      toast.error("Jobs from different staff members cannot be in the same plan.");
+      return;
+    }
+    if (hasUnassigned && staffIdSet.size > 0) {
+      toast.error("Cannot mix assigned and unassigned jobs in the same plan.");
+      return;
     }
     try {
       setSavingPlan(true);
@@ -1237,12 +1248,18 @@ function DailyPlanner({
             <div className="space-y-1 max-h-[40vh] overflow-y-auto">
               {dayJobs.map((j) => {
                 const checked = selectedIds.has(j.id);
+                const assignedStaff = (jobStaffMap[j.id] ?? [])
+                  .map((sid) => staff.find((s) => s.id === sid)?.name)
+                  .filter(Boolean);
                 return (
                   <label key={j.id} className={`flex items-start gap-2 p-2 rounded text-xs cursor-pointer border ${checked ? "bg-accent border-primary/40" : "hover:bg-accent/50"}`}>
                     <input type="checkbox" checked={checked} onChange={() => toggle(j.id)} className="mt-0.5" />
                     <div className="min-w-0 flex-1">
                       <div className="font-medium truncate">{j.name}</div>
                       <div className="text-muted-foreground truncate">{j.service_time.slice(0, 5)} · {j.address}</div>
+                      {assignedStaff.length > 0 && (
+                        <div className="text-[10px] text-primary/70 truncate mt-0.5">{assignedStaff.join(", ")}</div>
+                      )}
                     </div>
                   </label>
                 );
