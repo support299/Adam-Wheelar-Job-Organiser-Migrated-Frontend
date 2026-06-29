@@ -96,7 +96,7 @@ const empty: JobInsert = {
   parent_job_id: null,
   occurrence_index: null,
   series_count: null,
-  occurrences: 1,
+  occurrences: 1000,
 };
 
 export function JobFormDialog({
@@ -614,29 +614,7 @@ export function JobFormDialog({
                     </SelectContent>
                   </Select>
                 </div>
-                {(!job || (!job.parent_job_id && job.occurrence_index === 1)) && (
-                  <div className="grid gap-1.5">
-                    <Label>Occurrences</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={form.occurrences ?? ""}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value);
-                        setForm({ ...form, occurrences: !isNaN(val) && val >= 1 ? val : undefined });
-                      }}
-                    />
-                    {job ? (
-                      <p className="text-xs text-muted-foreground">
-                        Series has {job.series_count} occurrence{job.series_count === 1 ? "" : "s"}. Enter a higher number to add more.
-                      </p>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">
-                        How many jobs to create in this series (1 = no pre-generation).
-                      </p>
-                    )}
-                  </div>
-                )}
+
                 {job && job.parent_job_id && (
                   <p className="text-xs text-muted-foreground">
                     Occurrence {job.occurrence_index} — part of a recurring series. Edit occurrences on the parent job.
