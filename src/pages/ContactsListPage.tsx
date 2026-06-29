@@ -158,8 +158,11 @@ export function ContactsListPage() {
           <Card className="p-12 text-center text-muted-foreground">No contacts found for "{debouncedSearch}".</Card>
         ) : (
           <div className="grid gap-2">
-            {contacts.map((c) => (
-              <Link key={c.key} to={`/contacts/${contactIdFromKey(c.key)}`}>
+            {contacts.map((c) => {
+              const ghlId = c.jobs[0]?.ghl_contact_id;
+              const to = `/contacts/${contactIdFromKey(c.key)}` + (ghlId ? "?gid=" + ghlId : "");
+              return (
+              <Link key={c.key} to={to}>
                 <Card className="p-3 flex items-center justify-between gap-3 hover:shadow-sm transition-shadow">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -185,7 +188,8 @@ export function ContactsListPage() {
                   <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                 </Card>
               </Link>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>

@@ -3,7 +3,7 @@ import type { SavedPlan, SavedPlanInsert, SavedPlanUpdate, JobProgress } from ".
 
 export const plansApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
-    listPlans: build.query<SavedPlan[], { dateFrom?: string; dateTo?: string; staffId?: string }>({
+    listPlans: build.query<SavedPlan[], { dateFrom?: string; dateTo?: string; staffId?: string } | void>({
       query: ({ dateFrom, dateTo, staffId } = {}) => {
         const params = new URLSearchParams({ ordering: "-plan_date" });
         if (dateFrom) params.set("date_from", dateFrom);

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,12 +42,16 @@ type JobProductRow = { job_id: string; product_id: string; quantity: number; uni
 
 export function ContactDetailPage() {
   const { contactId } = useParams<{ contactId: string }>();
+  const [searchParams] = useSearchParams();
   const decodedId = contactId ? decodeURIComponent(contactId) : "";
 
-  // Derive a server-side filter from the contact key so we only fetch this
-  // contact's jobs instead of the entire jobs table.
-  // e: prefix → email key; p: prefix → phone-only (no exact filter available).
-  const jobFilter = decodedId.startsWith("e:")
+  // gid is passed from ContactsListPage and lets us filter by ghl_contact_id
+  // immediately without fetching all jobs first.
+  const ghlContactIdFromUrl = searchParams.get("gid") ?? undefined;
+
+  const jobFilter = ghlContactIdFromUrl
+    ? { ghl_contact_id: ghlContactIdFromUrl }
+    : decodedId.startsWith("e:")
     ? { email: decodedId.slice(2) }
     : undefined;
 
@@ -55,14 +59,18 @@ export function ContactDetailPage() {
   const { data: products = [] } = useListProductsQuery();
   const { data: staff = [] } = useListStaffQuery();
   const { data: allJobStaff = [] } = useListJobStaffQuery();
-  const { data: allJobProducts = [] } = useListAllJobProductsQuery();
   const { data: completions = [] } = useListJobCompletionsQuery();
 
-  // Derived early so phone-keyed contacts can fall back to their first job email
+  // Derived before job products query so we can filter by ghl_contact_id
   const contact = useMemo(() => {
     const groups = groupJobsByContact(allJobs);
     return groups.find((g) => g.key === decodedId) ?? null;
   }, [allJobs, decodedId]);
+
+  const ghlContactId = ghlContactIdFromUrl ?? contact?.jobs[0]?.ghl_contact_id ?? undefined;
+  const { data: allJobProducts = [] } = useListAllJobProductsQuery(
+    ghlContactId ? { ghl_contact_id: ghlContactId } : undefined
+  );
 
   // email-keyed: filter is available immediately
   // phone-keyed: derive ghl_contact_id from first job once contact loads
