@@ -270,7 +270,7 @@ export function JobFormDialog({
       const newCallStatus = (form.call_status as string | null) ?? "not_called";
       const baseCalls = Number(form.calls_made ?? 0);
       const callsMade =
-        (newCallStatus === "connected" || newCallStatus === "not_connected") &&
+        (newCallStatus === "connected" || newCallStatus === "not_connected" || newCallStatus === "call_back") &&
         newCallStatus !== prevCallStatus
           ? baseCalls + 1
           : baseCalls;
@@ -647,7 +647,7 @@ export function JobFormDialog({
           </div>
 
           {/* Call status */}
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_120px] gap-3" style={job && activeTab !== "activity" ? { display: "none" } : undefined}>
+          <div className="grid gap-3" style={job && activeTab !== "activity" ? { display: "none" } : undefined}>
             <div className="grid gap-1.5">
               <Label>Call Status</Label>
               <Select
@@ -659,9 +659,21 @@ export function JobFormDialog({
                   <SelectItem value="not_called">Not Called</SelectItem>
                   <SelectItem value="connected">Call Connected</SelectItem>
                   <SelectItem value="not_connected">Call Not Connected</SelectItem>
+                  <SelectItem value="call_back">Call Back</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            {form.call_status === "call_back" && (
+              <div className="grid gap-1.5">
+                <Label>Call Back Date</Label>
+                <Input
+                  type="date"
+                  value={form.service_date}
+                  onChange={(e) => setForm({ ...form, service_date: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">This updates the Service/Installation Date.</p>
+              </div>
+            )}
           </div>
 
           {/* Staff */}

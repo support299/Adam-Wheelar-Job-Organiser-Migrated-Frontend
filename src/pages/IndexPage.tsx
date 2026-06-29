@@ -17,7 +17,7 @@ import {
 import {
   Plus, Pencil, Trash2, MapPin, Sparkles, Search, ArrowUp, ArrowDown,
   CalendarIcon, CalendarClock, Settings as SettingsIcon, Users, History,
-  Circle as CircleIcon, ExternalLink, Phone, PhoneCall, Copy, BarChart3, Clock,
+  Circle as CircleIcon, ExternalLink, Phone, PhoneCall, PhoneForwarded, Copy, BarChart3, Clock,
   LogOut, RefreshCw, ChevronDown,
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
@@ -236,6 +236,7 @@ function CallStatusFilter({ value, onChange }: { value: string; onChange: (v: st
         <SelectItem value="not_called">Not Called</SelectItem>
         <SelectItem value="connected">Call Connected</SelectItem>
         <SelectItem value="not_connected">Call Not Connected</SelectItem>
+        <SelectItem value="call_back">Call Back</SelectItem>
       </SelectContent>
     </Select>
   );
@@ -246,13 +247,11 @@ function CallStatusFilter({ value, onChange }: { value: string; onChange: (v: st
 type CalView = "month" | "week" | "day";
 
 function MapCalendar({
-  jobs,
   staff,
   jobStaffMap,
   circle,
   onEditJob,
 }: {
-  jobs: Job[];
   staff: Staff[];
   jobStaffMap: Record<string, string[]>;
   circle: { center: { lat: number; lng: number }; radiusMeters: number } | null;
@@ -260,7 +259,8 @@ function MapCalendar({
 }) {
   const [view, setView] = useState<CalView>("week");
   const [anchor, setAnchor] = useState<Date>(() => new Date());
-  const [statusFilter, setStatusFilter] = useState<string[]>(["scheduled"]);
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [callStatusFilter, setCallStatusFilter] = useState<string>("all");
   const [staffFilter, setStaffFilter] = useState<string>("all");
   const [useCircle, setUseCircle] = useState(false);
   const [slotPick, setSlotPick] = useState<{ date: Date; hour: number } | null>(null);
@@ -283,12 +283,15 @@ function MapCalendar({
     return { start: startOfWeek(mStart), end: addDays(startOfWeek(mEnd), 6) };
   }, [view, anchor]);
 
+  const { data: calJobs = [] } = useListJobsQuery({
+    dateFrom: isoDate(range.start),
+    dateTo: isoDate(range.end),
+  });
+
   const filtered = useMemo(() => {
-    const startIso = isoDate(range.start);
-    const endIso = isoDate(range.end);
-    return jobs.filter((j) => {
+    return calJobs.filter((j) => {
       if (statusFilter.length > 0 && !statusFilter.includes(j.status)) return false;
-      if (j.service_date < startIso || j.service_date > endIso) return false;
+      if (callStatusFilter !== "all" && (j.call_status ?? "not_called") !== callStatusFilter) return false;
       if (staffFilter !== "all") {
         const ids = jobStaffMap[j.id] ?? [];
         if (staffFilter === "unassigned") { if (ids.length > 0) return false; }
@@ -299,7 +302,7 @@ function MapCalendar({
       }
       return true;
     });
-  }, [jobs, range, statusFilter, staffFilter, useCircle, circle, jobStaffMap]);
+  }, [calJobs, statusFilter, callStatusFilter, staffFilter, useCircle, circle, jobStaffMap]);
 
   const jobsByDay = useMemo(() => {
     const map: Record<string, Job[]> = {};
@@ -344,6 +347,7 @@ function MapCalendar({
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <CalendarStatusFilter values={statusFilter} onChange={setStatusFilter} />
+          <CallStatusFilter value={callStatusFilter} onChange={setCallStatusFilter} />
           <StaffFilter value={staffFilter} onChange={setStaffFilter} staff={staff} />
           <Button
             variant={useCircle ? "default" : "outline"}
@@ -378,7 +382,7 @@ function MapCalendar({
         {filtered.length} {statusFilter.length > 0 ? `${statusFilter.join(", ")} ` : ""}job{filtered.length === 1 ? "" : "s"} in range
         {useCircle && circle ? ` · within ${(circle.radiusMeters / 1000).toFixed(2)} km of drawn circle` : ""}
       </div>
-      <AvailableStaffDialog pick={slotPick} onClose={() => setSlotPick(null)} staff={staff} jobs={jobs} jobStaffMap={jobStaffMap} />
+      <AvailableStaffDialog pick={slotPick} onClose={() => setSlotPick(null)} staff={staff} jobs={calJobs} jobStaffMap={jobStaffMap} />
     </Card>
   );
 }
@@ -432,6 +436,11 @@ function MonthGrid({
                       <div className="flex items-center gap-1 mt-0.5">
                         <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: statusColor(j.status) }} />
                         <span className="text-[10px] capitalize opacity-75 truncate">{j.status}</span>
+                        {j.call_status === "call_back" && (
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-orange-600 ml-auto shrink-0">
+                            <PhoneForwarded className="h-2.5 w-2.5" />CB
+                          </span>
+                        )}
                       </div>
                     </button>
                   );
@@ -516,6 +525,11 @@ function WeekGrid({
                           <div className="flex items-center gap-1 mt-0.5">
                             <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: statusColor(j.status) }} />
                             <span className="text-[10px] capitalize opacity-75 truncate">{j.status}</span>
+                            {j.call_status === "call_back" && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-orange-600 ml-auto shrink-0">
+                                <PhoneForwarded className="h-2.5 w-2.5" />CB
+                              </span>
+                            )}
                           </div>
                         </button>
                       );
@@ -581,6 +595,12 @@ function DayList({
                     >
                       <div className="font-semibold truncate">{j.service_time.slice(0, 5)} · ${Number(j.service_value).toFixed(0)}</div>
                       <div className="truncate opacity-90">{j.name}</div>
+                      {j.call_status === "call_back" && (
+                        <div className="flex items-center gap-1 mt-0.5 text-orange-600">
+                          <PhoneForwarded className="h-3 w-3 shrink-0" />
+                          <span className="text-[10px] font-medium">Call Back</span>
+                        </div>
+                      )}
                     </button>
                     );
                   })}
@@ -698,7 +718,6 @@ function LastCallBadge({ jobId }: { jobId: string }) {
 
 function MapViewPanel({
   jobs,
-  allJobs,
   dateFrom,
   setDateFrom,
   dateTo,
@@ -723,7 +742,6 @@ function MapViewPanel({
   onEditJobActivity,
 }: {
   jobs: Job[];
-  allJobs: Job[];
   dateFrom: string;
   setDateFrom: (v: string) => void;
   dateTo: string;
@@ -929,7 +947,7 @@ function MapViewPanel({
           </div>
         </Card>
       </div>
-      <MapCalendar jobs={allJobs} staff={staff} jobStaffMap={jobStaffMap} circle={circle} onEditJob={onEditJob} />
+      <MapCalendar staff={staff} jobStaffMap={jobStaffMap} circle={circle} onEditJob={onEditJob} />
     </div>
   );
 }
@@ -1815,7 +1833,6 @@ export function IndexPage() {
           <TabsContent value="map">
             <MapViewPanel
               jobs={mapFiltered}
-              allJobs={mapJobs}
               dateFrom={mapDateFrom}
               setDateFrom={setMapDateFrom}
               dateTo={mapDateTo}
