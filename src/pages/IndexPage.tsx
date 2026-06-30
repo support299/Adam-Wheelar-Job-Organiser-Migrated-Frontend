@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -283,6 +284,10 @@ function MapCalendar({
     () => Object.fromEntries(staff.map((s) => [s.id, s.color ?? null])),
     [staff]
   );
+  const staffNameMap = useMemo(
+    () => Object.fromEntries(staff.map((s) => [s.id, s.name])),
+    [staff]
+  );
 
   const range = useMemo(() => {
     if (view === "day") {
@@ -372,11 +377,11 @@ function MapCalendar({
       </div>
 
       {view === "month" ? (
-        <MonthGrid anchor={anchor} range={range} jobsByDay={jobsByDay} onEditJob={onEditJob} staffColorMap={staffColorMap} />
+        <MonthGrid anchor={anchor} range={range} jobsByDay={jobsByDay} onEditJob={onEditJob} staffColorMap={staffColorMap} staffNameMap={staffNameMap} />
       ) : view === "week" ? (
-        <WeekGrid range={range} jobsByDay={jobsByDay} onEditJob={onEditJob} onSlotClick={(d, h) => setSlotPick({ date: d, hour: h })} staffColorMap={staffColorMap} />
+        <WeekGrid range={range} jobsByDay={jobsByDay} onEditJob={onEditJob} onSlotClick={(d, h) => setSlotPick({ date: d, hour: h })} staffColorMap={staffColorMap} staffNameMap={staffNameMap} />
       ) : (
-        <DayList date={anchor} jobs={jobsByDay[isoDate(anchor)] ?? []} onEditJob={onEditJob} onSlotClick={(d, h) => setSlotPick({ date: d, hour: h })} staffColorMap={staffColorMap} />
+        <DayList date={anchor} jobs={jobsByDay[isoDate(anchor)] ?? []} onEditJob={onEditJob} onSlotClick={(d, h) => setSlotPick({ date: d, hour: h })} staffColorMap={staffColorMap} staffNameMap={staffNameMap} />
       )}
 
       <div className="text-xs text-muted-foreground mt-3">
@@ -387,14 +392,52 @@ function MapCalendar({
   );
 }
 
+function JobHoverContent({ j, staffNameMap }: { j: Job; staffNameMap: Record<string, string> }) {
+  const assignedNames = (j.staff_ids ?? []).map((id) => staffNameMap[id]).filter(Boolean);
+  return (
+    <HoverCardContent side="right" align="start" className="w-72 p-3 space-y-2 text-xs">
+      <div className="font-semibold text-sm truncate">{j.name}</div>
+      <div className="flex items-center gap-1.5 text-muted-foreground">
+        <CalendarClock className="h-3.5 w-3.5 shrink-0" />
+        <span>{j.service_date} · {j.service_time.slice(0, 5)}</span>
+      </div>
+      <div className="flex items-start gap-1.5 text-muted-foreground">
+        <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+        <span className="break-words">{j.address}</span>
+      </div>
+      {j.phone && (
+        <div className="flex items-center gap-1.5 text-muted-foreground">
+          <Phone className="h-3.5 w-3.5 shrink-0" />
+          <span>{j.phone}</span>
+        </div>
+      )}
+      <div className="flex items-center gap-1.5">
+        <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: statusColor(j.status) }} />
+        <span className="capitalize text-muted-foreground">{j.status}</span>
+        <span className="ml-auto font-medium">${Number(j.service_value).toFixed(2)}</span>
+      </div>
+      {assignedNames.length > 0 && (
+        <div className="flex items-center gap-1.5 text-muted-foreground">
+          <Users className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">{assignedNames.join(", ")}</span>
+        </div>
+      )}
+      {j.notes && (
+        <div className="border-t pt-2 text-muted-foreground break-words line-clamp-3">{j.notes}</div>
+      )}
+    </HoverCardContent>
+  );
+}
+
 function MonthGrid({
-  anchor, range, jobsByDay, onEditJob, staffColorMap,
+  anchor, range, jobsByDay, onEditJob, staffColorMap, staffNameMap,
 }: {
   anchor: Date;
   range: { start: Date; end: Date };
   jobsByDay: Record<string, Job[]>;
   onEditJob: (j: Job) => void;
   staffColorMap: Record<string, string | null>;
+  staffNameMap: Record<string, string>;
 }) {
   const jobColor = (j: Job): string | null => j.staff_ids?.[0] ? (staffColorMap[j.staff_ids[0]] ?? null) : null;
   const days: Date[] = [];
@@ -424,25 +467,29 @@ function MonthGrid({
                 {items.slice(0, 3).map((j) => {
                   const jc = jobColor(j);
                   return (
-                    <button key={j.id} type="button" onClick={() => onEditJob(j)}
-                      className="w-full text-left text-sm leading-snug px-2 py-1 rounded overflow-hidden"
-                      style={jc ? { backgroundColor: jc + "26", color: jc } : undefined}
-                      title={`${j.service_time.slice(0, 5)} ${j.name}`}
-                    >
-                      <div className={`font-semibold truncate ${jc ? "" : "text-primary"}`} style={jc ? { color: jc } : undefined}>
-                        {j.service_time.slice(0, 5)}
-                      </div>
-                      <div className="truncate">{j.name}</div>
-                      <div className="flex items-center gap-1 mt-0.5">
-                        <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: statusColor(j.status) }} />
-                        <span className="text-[10px] capitalize opacity-75 truncate">{j.status}</span>
-                        {j.call_status === "call_back" && (
-                          <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-orange-600 ml-auto shrink-0">
-                            <PhoneForwarded className="h-2.5 w-2.5" />CB
-                          </span>
-                        )}
-                      </div>
-                    </button>
+                    <HoverCard key={j.id} openDelay={300} closeDelay={100}>
+                      <HoverCardTrigger asChild>
+                        <button type="button" onClick={() => onEditJob(j)}
+                          className="w-full text-left text-sm leading-snug px-2 py-1 rounded overflow-hidden"
+                          style={jc ? { backgroundColor: jc + "26", color: jc } : undefined}
+                        >
+                          <div className={`font-semibold truncate ${jc ? "" : "text-primary"}`} style={jc ? { color: jc } : undefined}>
+                            {j.service_time.slice(0, 5)}
+                          </div>
+                          <div className="truncate">{j.name}</div>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: statusColor(j.status) }} />
+                            <span className="text-[10px] capitalize opacity-75 truncate">{j.status}</span>
+                            {j.call_status === "call_back" && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-orange-600 ml-auto shrink-0">
+                                <PhoneForwarded className="h-2.5 w-2.5" />CB
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      </HoverCardTrigger>
+                      <JobHoverContent j={j} staffNameMap={staffNameMap} />
+                    </HoverCard>
                   );
                 })}
                 {items.length > 3 && (
@@ -457,19 +504,59 @@ function MonthGrid({
   );
 }
 
+function computeJobLayout(jobs: Job[]): Map<string, { col: number; totalCols: number }> {
+  const toMin = (j: Job) => parseHour(j.service_time) * 60 + parseMinutes(j.service_time);
+  const toEnd = (j: Job) => toMin(j) + (j.duration ?? 60);
+  const sorted = [...jobs].sort((a, b) => toMin(a) - toMin(b));
+
+  const colAssign = new Map<string, number>();
+  const colEnds: number[] = [];
+  for (const job of sorted) {
+    const start = toMin(job);
+    let col = colEnds.findIndex((e) => e <= start);
+    if (col === -1) col = colEnds.length;
+    colEnds[col] = toEnd(job);
+    colAssign.set(job.id, col);
+  }
+
+  const layout = new Map<string, { col: number; totalCols: number }>();
+  for (const job of sorted) {
+    const start = toMin(job);
+    const end = toEnd(job);
+    let maxCol = colAssign.get(job.id)!;
+    for (const other of sorted) {
+      if (toMin(other) < end && toEnd(other) > start) {
+        maxCol = Math.max(maxCol, colAssign.get(other.id)!);
+      }
+    }
+    layout.set(job.id, { col: colAssign.get(job.id)!, totalCols: maxCol + 1 });
+  }
+  return layout;
+}
+
 function WeekGrid({
-  range, jobsByDay, onEditJob, onSlotClick, staffColorMap,
+  range, jobsByDay, onEditJob, onSlotClick, staffColorMap, staffNameMap,
 }: {
   range: { start: Date; end: Date };
   jobsByDay: Record<string, Job[]>;
   onEditJob: (j: Job) => void;
   onSlotClick: (date: Date, hour: number) => void;
   staffColorMap: Record<string, string | null>;
+  staffNameMap: Record<string, string>;
 }) {
   const jobColor = (j: Job): string | null => j.staff_ids?.[0] ? (staffColorMap[j.staff_ids[0]] ?? null) : null;
   const days: Date[] = [];
   for (let d = new Date(range.start); d <= range.end; d = addDays(d, 1)) days.push(new Date(d));
   const today = new Date();
+
+  const layoutsByDay = useMemo(() => {
+    const m: Record<string, Map<string, { col: number; totalCols: number }>> = {};
+    for (const [iso, dayJobs] of Object.entries(jobsByDay)) {
+      m[iso] = computeJobLayout(dayJobs);
+    }
+    return m;
+  }, [jobsByDay]);
+
   return (
     <div className="border rounded-md overflow-hidden">
       <div className="grid bg-muted/50 text-sm font-medium" style={{ gridTemplateColumns: "72px repeat(7, minmax(0, 1fr))" }}>
@@ -494,7 +581,9 @@ function WeekGrid({
                 {formatHour(h)}
               </div>
               {days.map((d) => {
-                const items = (jobsByDay[isoDate(d)] ?? []).filter((j) => parseHour(j.service_time) === h);
+                const iso = isoDate(d);
+                const items = (jobsByDay[iso] ?? []).filter((j) => parseHour(j.service_time) === h);
+                const dayLayout = layoutsByDay[iso];
                 return (
                   <div
                     key={d.toISOString() + h}
@@ -504,34 +593,39 @@ function WeekGrid({
                     }}
                     className="relative border-r last:border-r-0 border-b h-16 hover:bg-accent/40 cursor-pointer overflow-visible"
                   >
-                    {items.map((j, idx) => {
+                    {items.map((j) => {
                       const jc = jobColor(j);
                       const mins = parseMinutes(j.service_time);
                       const heightPx = ((j.duration ?? 60) / 60) * 64;
-                      const n = items.length;
+                      const { col, totalCols } = dayLayout?.get(j.id) ?? { col: 0, totalCols: 1 };
                       return (
-                        <button key={j.id} data-job-btn type="button" onClick={(ev) => { ev.stopPropagation(); onEditJob(j); }}
-                          className={`absolute text-left text-sm leading-snug px-2 py-1 rounded overflow-hidden z-10 ${jc ? "" : "bg-primary/15 text-primary"}`}
-                          style={{
-                            top: `${(mins / 60) * 64}px`,
-                            height: `${heightPx}px`,
-                            left: `calc(${(idx / n) * 100}% + 2px)`,
-                            right: `calc(${((n - idx - 1) / n) * 100}% + 2px)`,
-                            ...(jc ? { backgroundColor: jc + "26", color: jc } : {}),
-                          }}
-                        >
-                          <div className="font-semibold truncate">{j.service_time.slice(0, 5)}</div>
-                          <div className="truncate">{j.name}</div>
-                          <div className="flex items-center gap-1 mt-0.5">
-                            <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: statusColor(j.status) }} />
-                            <span className="text-[10px] capitalize opacity-75 truncate">{j.status}</span>
-                            {j.call_status === "call_back" && (
-                              <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-orange-600 ml-auto shrink-0">
-                                <PhoneForwarded className="h-2.5 w-2.5" />CB
-                              </span>
-                            )}
-                          </div>
-                        </button>
+                        <HoverCard key={j.id} openDelay={300} closeDelay={100}>
+                          <HoverCardTrigger asChild>
+                            <button data-job-btn type="button" onClick={(ev) => { ev.stopPropagation(); onEditJob(j); }}
+                              className={`absolute text-left text-sm leading-snug px-2 py-1 rounded overflow-hidden z-10 ${jc ? "" : "bg-primary/15 text-primary"}`}
+                              style={{
+                                top: `${(mins / 60) * 64}px`,
+                                height: `${heightPx}px`,
+                                left: `calc(${(col / totalCols) * 100}% + 2px)`,
+                                right: `calc(${((totalCols - col - 1) / totalCols) * 100}% + 2px)`,
+                                ...(jc ? { backgroundColor: jc + "26", color: jc } : {}),
+                              }}
+                            >
+                              <div className="font-semibold truncate">{j.service_time.slice(0, 5)}</div>
+                              <div className="truncate">{j.name}</div>
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: statusColor(j.status) }} />
+                                <span className="text-[10px] capitalize opacity-75 truncate">{j.status}</span>
+                                {j.call_status === "call_back" && (
+                                  <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-orange-600 ml-auto shrink-0">
+                                    <PhoneForwarded className="h-2.5 w-2.5" />CB
+                                  </span>
+                                )}
+                              </div>
+                            </button>
+                          </HoverCardTrigger>
+                          <JobHoverContent j={j} staffNameMap={staffNameMap} />
+                        </HoverCard>
                       );
                     })}
                   </div>
@@ -546,15 +640,17 @@ function WeekGrid({
 }
 
 function DayList({
-  date, jobs, onEditJob, onSlotClick, staffColorMap,
+  date, jobs, onEditJob, onSlotClick, staffColorMap, staffNameMap,
 }: {
   date: Date;
   jobs: Job[];
   onEditJob: (j: Job) => void;
   onSlotClick: (date: Date, hour: number) => void;
   staffColorMap: Record<string, string | null>;
+  staffNameMap: Record<string, string>;
 }) {
   const jobColor = (j: Job): string | null => j.staff_ids?.[0] ? (staffColorMap[j.staff_ids[0]] ?? null) : null;
+  const layout = useMemo(() => computeJobLayout(jobs), [jobs]);
   return (
     <div className="border rounded-md overflow-hidden">
       <div className="grid bg-muted/50 text-sm font-semibold" style={{ gridTemplateColumns: "72px minmax(0,1fr)" }}>
@@ -577,31 +673,36 @@ function DayList({
                   }}
                   className="relative border-b h-20 hover:bg-accent/40 cursor-pointer overflow-visible"
                 >
-                  {items.map((j, idx) => {
+                  {items.map((j) => {
                     const jc = jobColor(j);
                     const mins = parseMinutes(j.service_time);
                     const heightPx = ((j.duration ?? 60) / 60) * 80;
-                    const n = items.length;
+                    const { col, totalCols } = layout.get(j.id) ?? { col: 0, totalCols: 1 };
                     return (
-                    <button key={j.id} data-job-btn type="button" onClick={(ev) => { ev.stopPropagation(); onEditJob(j); }}
-                      className={`absolute text-left text-sm px-3 py-1.5 rounded overflow-hidden z-10 ${jc ? "" : "bg-primary/15 text-primary"}`}
-                      style={{
-                        top: `${(mins / 60) * 80}px`,
-                        height: `${heightPx}px`,
-                        left: `calc(${(idx / n) * 100}% + 2px)`,
-                        right: `calc(${((n - idx - 1) / n) * 100}% + 2px)`,
-                        ...(jc ? { backgroundColor: jc + "26", color: jc } : {}),
-                      }}
-                    >
-                      <div className="font-semibold truncate">{j.service_time.slice(0, 5)} · ${Number(j.service_value).toFixed(0)}</div>
-                      <div className="truncate opacity-90">{j.name}</div>
-                      {j.call_status === "call_back" && (
-                        <div className="flex items-center gap-1 mt-0.5 text-orange-600">
-                          <PhoneForwarded className="h-3 w-3 shrink-0" />
-                          <span className="text-[10px] font-medium">Call Back</span>
-                        </div>
-                      )}
-                    </button>
+                      <HoverCard key={j.id} openDelay={300} closeDelay={100}>
+                        <HoverCardTrigger asChild>
+                          <button data-job-btn type="button" onClick={(ev) => { ev.stopPropagation(); onEditJob(j); }}
+                            className={`absolute text-left text-sm px-3 py-1.5 rounded overflow-hidden z-10 ${jc ? "" : "bg-primary/15 text-primary"}`}
+                            style={{
+                              top: `${(mins / 60) * 80}px`,
+                              height: `${heightPx}px`,
+                              left: `calc(${(col / totalCols) * 100}% + 2px)`,
+                              right: `calc(${((totalCols - col - 1) / totalCols) * 100}% + 2px)`,
+                              ...(jc ? { backgroundColor: jc + "26", color: jc } : {}),
+                            }}
+                          >
+                            <div className="font-semibold truncate">{j.service_time.slice(0, 5)} · ${Number(j.service_value).toFixed(0)}</div>
+                            <div className="truncate opacity-90">{j.name}</div>
+                            {j.call_status === "call_back" && (
+                              <div className="flex items-center gap-1 mt-0.5 text-orange-600">
+                                <PhoneForwarded className="h-3 w-3 shrink-0" />
+                                <span className="text-[10px] font-medium">Call Back</span>
+                              </div>
+                            )}
+                          </button>
+                        </HoverCardTrigger>
+                        <JobHoverContent j={j} staffNameMap={staffNameMap} />
+                      </HoverCard>
                     );
                   })}
                 </div>
