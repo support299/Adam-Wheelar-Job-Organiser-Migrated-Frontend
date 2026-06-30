@@ -52,6 +52,10 @@ export function PlansPage() {
     dispatch(clearCredentials());
   }
 
+  const isInIframe = useMemo(() => {
+    try { return window.self !== window.top; } catch { return true; }
+  }, []);
+
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [dateFrom, setDateFrom] = useState(todayIso());
   const [dateTo, setDateTo] = useState(todayIso());
@@ -105,7 +109,7 @@ export function PlansPage() {
             <h1 className="text-lg sm:text-xl font-semibold tracking-tight">Saved Plans</h1>
             <p className="text-[11px] sm:text-xs text-muted-foreground">Optimized daily route plans</p>
           </div>
-          {isAdmin && (
+          {(isAdmin || isInIframe) && (
             <Button variant="outline" size="icon" className="cursor-pointer" onClick={() => navigate("/")}>
               <Home className="h-4 w-4" />
             </Button>
