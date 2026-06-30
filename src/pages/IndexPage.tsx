@@ -170,7 +170,7 @@ function CalendarStatusFilter({ values, onChange }: { values: string[]; onChange
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="w-[150px] justify-between font-normal">
+        <Button variant="outline" size="default" className="w-[150px] h-9 px-3 justify-between font-normal text-sm shadow-sm">
           <span className="truncate">{label}</span>
           <ChevronDown className="h-4 w-4 ml-1 shrink-0 opacity-50" />
         </Button>
@@ -246,24 +246,38 @@ function CallStatusFilter({ value, onChange }: { value: string; onChange: (v: st
 
 type CalView = "month" | "week" | "day";
 
+const CAL_PREF_KEY = "mapCalendarPrefs";
+function loadCalPrefs(): { view: CalView; statusFilter: string[]; callStatusFilter: string; staffFilter: string } {
+  try {
+    const raw = localStorage.getItem(CAL_PREF_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return { view: "week", statusFilter: [], callStatusFilter: "all", staffFilter: "all" };
+}
+function saveCalPrefs(prefs: { view: CalView; statusFilter: string[]; callStatusFilter: string; staffFilter: string }) {
+  try { localStorage.setItem(CAL_PREF_KEY, JSON.stringify(prefs)); } catch { /* ignore */ }
+}
+
 function MapCalendar({
   staff,
   jobStaffMap,
-  circle,
   onEditJob,
 }: {
   staff: Staff[];
   jobStaffMap: Record<string, string[]>;
-  circle: { center: { lat: number; lng: number }; radiusMeters: number } | null;
   onEditJob: (job: Job) => void;
 }) {
-  const [view, setView] = useState<CalView>("week");
+  const prefs = useMemo(loadCalPrefs, []);
+  const [view, setView] = useState<CalView>(prefs.view);
   const [anchor, setAnchor] = useState<Date>(() => new Date());
-  const [statusFilter, setStatusFilter] = useState<string[]>([]);
-  const [callStatusFilter, setCallStatusFilter] = useState<string>("all");
-  const [staffFilter, setStaffFilter] = useState<string>("all");
-  const [useCircle, setUseCircle] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string[]>(prefs.statusFilter);
+  const [callStatusFilter, setCallStatusFilter] = useState<string>(prefs.callStatusFilter);
+  const [staffFilter, setStaffFilter] = useState<string>(prefs.staffFilter);
   const [slotPick, setSlotPick] = useState<{ date: Date; hour: number } | null>(null);
+
+  useEffect(() => {
+    saveCalPrefs({ view, statusFilter, callStatusFilter, staffFilter });
+  }, [view, statusFilter, callStatusFilter, staffFilter]);
 
   const staffColorMap = useMemo(
     () => Object.fromEntries(staff.map((s) => [s.id, s.color ?? null])),
@@ -297,12 +311,9 @@ function MapCalendar({
         if (staffFilter === "unassigned") { if (ids.length > 0) return false; }
         else if (!ids.includes(staffFilter)) return false;
       }
-      if (useCircle && circle) {
-        if (distanceKm(circle.center, { lat: j.lat, lng: j.lng }) > circle.radiusMeters / 1000) return false;
-      }
       return true;
     });
-  }, [calJobs, statusFilter, callStatusFilter, staffFilter, useCircle, circle, jobStaffMap]);
+  }, [calJobs, statusFilter, callStatusFilter, staffFilter, jobStaffMap]);
 
   const jobsByDay = useMemo(() => {
     const map: Record<string, Job[]> = {};
@@ -349,16 +360,6 @@ function MapCalendar({
           <CalendarStatusFilter values={statusFilter} onChange={setStatusFilter} />
           <CallStatusFilter value={callStatusFilter} onChange={setCallStatusFilter} />
           <StaffFilter value={staffFilter} onChange={setStaffFilter} staff={staff} />
-          <Button
-            variant={useCircle ? "default" : "outline"}
-            size="sm"
-            disabled={!circle}
-            onClick={() => setUseCircle((v) => !v)}
-            title={circle ? "Filter by drawn circle on map" : "Draw a circle on the map first"}
-          >
-            <CircleIcon className="h-4 w-4 mr-1" />
-            {useCircle ? "Circle filter on" : "Apply circle filter"}
-          </Button>
           <Select value={view} onValueChange={(v) => setView(v as CalView)}>
             <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -380,7 +381,6 @@ function MapCalendar({
 
       <div className="text-xs text-muted-foreground mt-3">
         {filtered.length} {statusFilter.length > 0 ? `${statusFilter.join(", ")} ` : ""}job{filtered.length === 1 ? "" : "s"} in range
-        {useCircle && circle ? ` · within ${(circle.radiusMeters / 1000).toFixed(2)} km of drawn circle` : ""}
       </div>
       <AvailableStaffDialog pick={slotPick} onClose={() => setSlotPick(null)} staff={staff} jobs={calJobs} jobStaffMap={jobStaffMap} />
     </Card>
@@ -947,7 +947,7 @@ function MapViewPanel({
           </div>
         </Card>
       </div>
-      <MapCalendar staff={staff} jobStaffMap={jobStaffMap} circle={circle} onEditJob={onEditJob} />
+      <MapCalendar staff={staff} jobStaffMap={jobStaffMap} onEditJob={onEditJob} />
     </div>
   );
 }
