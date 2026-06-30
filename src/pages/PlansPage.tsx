@@ -261,7 +261,7 @@ function PlanJobList({
   const progressMap = useMemo(() => {
     const m: Record<string, JobProgress[]> = {};
     for (const row of progressRows) {
-      const k = `${row.plan_id}:${row.job_id}`;
+      const k = `${row.plan}:${row.job_id}`;
       (m[k] ??= []).push(row);
     }
     return m;

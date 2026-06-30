@@ -140,7 +140,7 @@ export type SavedPlanUpdate = Partial<SavedPlanInsert>;
 
 export type JobProgress = {
   id: string;
-  plan_id: string;
+  plan: string;
   job_id: string;
   staff_id: string;
   status: string;

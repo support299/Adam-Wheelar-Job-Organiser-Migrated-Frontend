@@ -120,7 +120,7 @@ export function ReportsPage() {
     const acc: Record<string, number> = {};
     for (const pr of progress) {
       if (pr.staff_id !== selectedStaff) continue;
-      if (!planIds.has(pr.plan_id)) continue;
+      if (!planIds.has(pr.plan)) continue;
       if (pr.actual_km == null) continue;
       acc[pr.job_id] = (acc[pr.job_id] ?? 0) + Number(pr.actual_km);
     }
@@ -132,7 +132,7 @@ export function ReportsPage() {
     const s = new Set<string>();
     for (const pr of progress) {
       if (pr.staff_id !== selectedStaff) continue;
-      if (!planIds.has(pr.plan_id)) continue;
+      if (!planIds.has(pr.plan)) continue;
       if (pr.status === "completed") s.add(pr.job_id);
     }
     return s;
@@ -175,7 +175,7 @@ export function ReportsPage() {
     const planIds = new Set(staffPlans.map((p) => p.id));
     const acc: Record<string, string> = {};
     for (const pr of progress) {
-      if (pr.staff_id !== selectedStaff || !planIds.has(pr.plan_id) || pr.status !== "completed") continue;
+      if (pr.staff_id !== selectedStaff || !planIds.has(pr.plan) || pr.status !== "completed") continue;
       const d = new Date(pr.updated_at);
       acc[pr.job_id] = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     }
