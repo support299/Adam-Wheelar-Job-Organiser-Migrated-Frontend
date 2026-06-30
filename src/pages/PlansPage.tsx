@@ -286,7 +286,7 @@ function PlanJobList({
             <button
               type="button"
               onClick={() => setExpanded((prev) => ({ ...prev, [key]: !isOpen }))}
-              className="w-full flex items-center gap-1.5 text-xs p-1.5 sm:p-2 text-left hover:bg-accent/50 rounded min-w-0"
+              className="w-full flex items-center gap-1.5 text-xs p-1.5 sm:p-2 text-left hover:bg-accent/50 rounded min-w-0 cursor-pointer"
             >
               <span className="h-5 w-5 rounded-full bg-primary text-primary-foreground inline-flex items-center justify-center text-[10px] font-bold shrink-0">
                 {i + 1}

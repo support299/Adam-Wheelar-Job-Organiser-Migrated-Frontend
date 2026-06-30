@@ -470,7 +470,7 @@ function MonthGrid({
                     <HoverCard key={j.id} openDelay={300} closeDelay={100}>
                       <HoverCardTrigger asChild>
                         <button type="button" onClick={() => onEditJob(j)}
-                          className="w-full text-left text-sm leading-snug px-2 py-1 rounded overflow-hidden"
+                          className="w-full text-left text-sm leading-snug px-2 py-1 rounded overflow-hidden cursor-pointer"
                           style={jc ? { backgroundColor: jc + "26", color: jc } : undefined}
                         >
                           <div className={`font-semibold truncate ${jc ? "" : "text-primary"}`} style={jc ? { color: jc } : undefined}>
@@ -493,7 +493,48 @@ function MonthGrid({
                   );
                 })}
                 {items.length > 3 && (
-                  <div className="text-xs text-muted-foreground px-1">+{items.length - 3} more</div>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button type="button" className="text-xs text-muted-foreground hover:text-foreground px-1 cursor-pointer w-full text-left">
+                        +{items.length - 3} more
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-72 p-2 max-h-80 overflow-y-auto" align="start">
+                      <div className="text-xs font-semibold text-muted-foreground mb-2 px-1">
+                        {isoDate(d)} — {items.length} jobs
+                      </div>
+                      <div className="space-y-1">
+                        {items.map((j) => {
+                          const jc = jobColor(j);
+                          return (
+                            <HoverCard key={j.id} openDelay={300} closeDelay={100}>
+                              <HoverCardTrigger asChild>
+                                <button type="button" onClick={() => onEditJob(j)}
+                                  className="w-full text-left text-sm leading-snug px-2 py-1 rounded overflow-hidden cursor-pointer"
+                                  style={jc ? { backgroundColor: jc + "26", color: jc } : undefined}
+                                >
+                                  <div className={`font-semibold truncate ${jc ? "" : "text-primary"}`} style={jc ? { color: jc } : undefined}>
+                                    {j.service_time.slice(0, 5)}
+                                  </div>
+                                  <div className="truncate">{j.name}</div>
+                                  <div className="flex items-center gap-1 mt-0.5">
+                                    <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: statusColor(j.status) }} />
+                                    <span className="text-[10px] capitalize opacity-75 truncate">{j.status}</span>
+                                    {j.call_status === "call_back" && (
+                                      <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-orange-600 ml-auto shrink-0">
+                                        <PhoneForwarded className="h-2.5 w-2.5" />CB
+                                      </span>
+                                    )}
+                                  </div>
+                                </button>
+                              </HoverCardTrigger>
+                              <JobHoverContent j={j} staffNameMap={staffNameMap} />
+                            </HoverCard>
+                          );
+                        })}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 )}
               </div>
             </div>
@@ -602,7 +643,7 @@ function WeekGrid({
                         <HoverCard key={j.id} openDelay={300} closeDelay={100}>
                           <HoverCardTrigger asChild>
                             <button data-job-btn type="button" onClick={(ev) => { ev.stopPropagation(); onEditJob(j); }}
-                              className={`absolute text-left text-sm leading-snug px-2 py-1 rounded overflow-hidden z-10 ${jc ? "" : "bg-primary/15 text-primary"}`}
+                              className={`absolute text-left text-sm leading-snug px-2 py-1 rounded overflow-hidden z-10 cursor-pointer ${jc ? "" : "bg-primary/15 text-primary"}`}
                               style={{
                                 top: `${(mins / 60) * 64}px`,
                                 height: `${heightPx}px`,
@@ -682,7 +723,7 @@ function DayList({
                       <HoverCard key={j.id} openDelay={300} closeDelay={100}>
                         <HoverCardTrigger asChild>
                           <button data-job-btn type="button" onClick={(ev) => { ev.stopPropagation(); onEditJob(j); }}
-                            className={`absolute text-left text-sm px-3 py-1.5 rounded overflow-hidden z-10 ${jc ? "" : "bg-primary/15 text-primary"}`}
+                            className={`absolute text-left text-sm px-3 py-1.5 rounded overflow-hidden z-10 cursor-pointer ${jc ? "" : "bg-primary/15 text-primary"}`}
                             style={{
                               top: `${(mins / 60) * 80}px`,
                               height: `${heightPx}px`,
