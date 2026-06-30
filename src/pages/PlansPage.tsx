@@ -120,26 +120,26 @@ export function PlansPage() {
         <Card className="p-3 grid gap-2 sm:gap-3 grid-cols-2 sm:grid-cols-4">
           <div className="grid gap-1">
             <Label className="text-xs">From</Label>
-            <Input type="date" className="h-9" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+            <Input type="date" className="h-9 text-sm" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
           </div>
           <div className="grid gap-1">
             <Label className="text-xs">To</Label>
-            <Input type="date" className="h-9" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+            <Input type="date" className="h-9 text-sm" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
           </div>
-          <div className="grid gap-1 col-span-2 sm:col-span-1">
+          <div className="grid gap-1">
             <Label className="text-xs">Staff</Label>
             <Select value={staffFilter} onValueChange={setStaffFilter}>
-              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9 text-xs sm:text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All staff</SelectItem>
                 {visibleStaff.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
-          <div className="grid gap-1 col-span-2 sm:col-span-1">
+          <div className="grid gap-1">
             <Label className="text-xs">Status</Label>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9 text-xs sm:text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All statuses</SelectItem>
                 {(Object.keys(JOB_PROGRESS_LABELS) as JobProgressStatus[]).map((s) => (
@@ -161,15 +161,15 @@ export function PlansPage() {
               const sids = (p.staff_ids ?? []) as string[];
               const planJobById = new Map((p.jobs ?? []).map((j) => [j.id, j]));
               return (
-                <Card key={p.id} className="p-2 sm:p-3 overflow-hidden">
+                <Card key={p.id} className="p-1.5 sm:p-3 overflow-hidden">
                   <div className="flex items-start justify-between gap-2 sm:gap-3 min-w-0">
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-sm sm:text-base break-words">{p.name}</span>
-                        <Badge variant="outline"><CalendarClock className="h-3 w-3 mr-1" />{p.plan_date}</Badge>
-                        {p.base_name && <Badge variant="outline"><MapPin className="h-3 w-3 mr-1" />{p.base_name}</Badge>}
-                        {p.route_shape && <Badge variant="secondary">{p.route_shape}</Badge>}
-                        {p.optimize_metric && <Badge variant="secondary">{p.optimize_metric}</Badge>}
+                      <p className="font-semibold text-sm sm:text-base leading-snug break-words">{p.name}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0"><CalendarClock className="h-3 w-3 mr-1" />{p.plan_date}</Badge>
+                        {p.base_name && <Badge variant="outline" className="text-[10px] px-1.5 py-0 max-w-[140px] truncate"><MapPin className="h-3 w-3 mr-1 shrink-0" />{p.base_name}</Badge>}
+                        {p.route_shape && <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{p.route_shape}</Badge>}
+                        {p.optimize_metric && <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{p.optimize_metric}</Badge>}
                       </div>
                       <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1 flex-wrap">
                         <Users className="h-3 w-3" />
@@ -282,26 +282,26 @@ function PlanJobList({
             <button
               type="button"
               onClick={() => setExpanded((prev) => ({ ...prev, [key]: !isOpen }))}
-              className="w-full flex items-center gap-2 text-xs p-2 text-left hover:bg-accent/50 rounded min-w-0"
+              className="w-full flex items-center gap-1.5 text-xs p-1.5 sm:p-2 text-left hover:bg-accent/50 rounded min-w-0"
             >
               <span className="h-5 w-5 rounded-full bg-primary text-primary-foreground inline-flex items-center justify-center text-[10px] font-bold shrink-0">
                 {i + 1}
               </span>
               {isOpen ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
-              <span className="truncate flex-1">{j ? `${j.name} — ${j.address}` : "(job removed)"}</span>
+              <span className="truncate flex-1 min-w-0">{j ? j.name : "(job removed)"}</span>
               {jobProgress.length === 0 ? (
-                <Badge variant="outline" className="text-[10px]">{JOB_PROGRESS_LABELS.pending}</Badge>
+                <Badge variant="outline" className="text-[10px] shrink-0">{JOB_PROGRESS_LABELS.pending}</Badge>
               ) : (
                 jobProgress.map((pr) => (
-                  <Badge key={pr.id} variant="secondary" className="text-[10px]" title={staffName(pr.staff_id)}>
+                  <Badge key={pr.id} variant="secondary" className="text-[10px] shrink-0" title={staffName(pr.staff_id)}>
                     {JOB_PROGRESS_LABELS[(pr.status as JobProgressStatus) ?? "pending"]}
                   </Badge>
                 ))
               )}
-              {j && <span className="text-muted-foreground">{j.service_time?.slice(0, 5)}</span>}
+              {j && <span className="text-muted-foreground shrink-0 tabular-nums">{j.service_time?.slice(0, 5)}</span>}
             </button>
             {isOpen && j && (
-              <div className="border-t p-2 sm:p-3 space-y-2 text-xs">
+              <div className="border-t p-2 sm:p-3 space-y-2 text-xs overflow-x-hidden">
                 <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-2">
                   {j.phone && (
                     <Button size="sm" variant="outline" className="w-full sm:w-auto justify-center" asChild>
