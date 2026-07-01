@@ -253,7 +253,7 @@ function loadCalPrefs(): { view: CalView; statusFilter: string[]; callStatusFilt
     const raw = localStorage.getItem(CAL_PREF_KEY);
     if (raw) return JSON.parse(raw);
   } catch { /* ignore */ }
-  return { view: "week", statusFilter: [], callStatusFilter: "all", staffFilter: "all" };
+  return { view: "week", statusFilter: ["scheduled"], callStatusFilter: "all", staffFilter: "all" };
 }
 function saveCalPrefs(prefs: { view: CalView; statusFilter: string[]; callStatusFilter: string; staffFilter: string }) {
   try { localStorage.setItem(CAL_PREF_KEY, JSON.stringify(prefs)); } catch { /* ignore */ }
