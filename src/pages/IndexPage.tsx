@@ -46,7 +46,6 @@ import {
   useSetJobProductsMutation,
   useCreateJobCompletionMutation,
 } from "@/api/jobsApi";
-import { useListContactNotesByJobIdQuery } from "@/api/contactsApi";
 import { useListStaffQuery } from "@/api/staffApi";
 import { useListBaseLocationsQuery } from "@/api/locationsApi";
 import { useGetDistanceMatrixMutation } from "@/api/mapsApi";
@@ -302,10 +301,13 @@ function MapCalendar({
     return { start: startOfWeek(mStart), end: addDays(startOfWeek(mEnd), 6) };
   }, [view, anchor]);
 
-  const { data: calJobs = [] } = useListJobsQuery({
-    dateFrom: isoDate(range.start),
-    dateTo: isoDate(range.end),
-  });
+  const { data: calJobs = [] } = useListJobsQuery(
+    {
+      dateFrom: isoDate(range.start),
+      dateTo: isoDate(range.end),
+    },
+    { pollingInterval: 60_000, skipPollingIfUnfocused: true },
+  );
 
   const filtered = useMemo(() => {
     return calJobs.filter((j) => {
@@ -841,11 +843,9 @@ function AvailableStaffDialog({
   );
 }
 
-function LastCallBadge({ jobId }: { jobId: string }) {
-  const { data: notes = [] } = useListContactNotesByJobIdQuery(jobId);
-  if (notes.length === 0) return null;
-  const latest = notes.reduce((a, b) => (a.created_at > b.created_at ? a : b));
-  const when = new Date(latest.created_at).toLocaleDateString(undefined, {
+function LastCallBadge({ lastCallAt }: { lastCallAt: string | null }) {
+  if (!lastCallAt) return null;
+  const when = new Date(lastCallAt).toLocaleDateString(undefined, {
     month: "short", day: "numeric", year: "numeric",
   });
   return (
@@ -1081,7 +1081,7 @@ function MapViewPanel({
                         </div>
                       );
                     })()}
-                    <LastCallBadge jobId={j.id} />
+                    <LastCallBadge lastCallAt={j.last_call_at} />
                   </div>
                 );
               })
@@ -1636,9 +1636,13 @@ export function IndexPage() {
   // Map View fetches only the visible date window; Daily Planner fetches all jobs.
   const { data: mapJobs = [] } = useListJobsQuery(
     { dateFrom: mapDateFrom || undefined, dateTo: mapDateTo || undefined },
-    { skip: activeMainTab !== "map" },
+    { skip: activeMainTab !== "map", pollingInterval: 60_000, skipPollingIfUnfocused: true },
   );
-  const { data: plannerJobs = [] } = useListJobsQuery(undefined, { skip: activeMainTab !== "planner" });
+  const { data: plannerJobs = [] } = useListJobsQuery(undefined, {
+    skip: activeMainTab !== "planner",
+    pollingInterval: 60_000,
+    skipPollingIfUnfocused: true,
+  });
 
   // Reset to the first page whenever the Jobs List filters change.
   useEffect(() => {
@@ -1647,15 +1651,18 @@ export function IndexPage() {
 
   // Jobs List is paginated server-side so the browser only fetches one page.
   const { data: jobsPage, isLoading: jobsPageLoading, isFetching: jobsPageFetching, refetch: refetchJobsPage } =
-    useListJobsPagedQuery({
-      page,
-      pageSize: PAGE_SIZE,
-      search: debouncedSearch || undefined,
-      status: statusFilter,
-      dueTag: dueTagFilter,
-      serviceDate: dateFilter || undefined,
-      staffId: staffFilter,
-    });
+    useListJobsPagedQuery(
+      {
+        page,
+        pageSize: PAGE_SIZE,
+        search: debouncedSearch || undefined,
+        status: statusFilter,
+        dueTag: dueTagFilter,
+        serviceDate: dateFilter || undefined,
+        staffId: staffFilter,
+      },
+      { pollingInterval: 60_000, skipPollingIfUnfocused: true },
+    );
 
   const pageResults = jobsPage?.results ?? [];
   const totalCount = jobsPage?.count ?? 0;

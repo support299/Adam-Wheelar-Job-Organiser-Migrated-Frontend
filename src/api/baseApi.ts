@@ -47,6 +47,10 @@ const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQue
 export const baseApi = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
+  // Re-sync all active queries with the server when the tab regains focus or
+  // the connection returns (requires setupListeners in store.ts).
+  refetchOnFocus: true,
+  refetchOnReconnect: true,
   tagTypes: [
     "Job",
     "Staff",

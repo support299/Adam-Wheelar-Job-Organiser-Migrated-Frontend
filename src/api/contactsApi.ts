@@ -30,7 +30,12 @@ export const contactsApi = baseApi.injectEndpoints({
     }),
     createContactNote: build.mutation<ContactNote, { contact_key: string; job_id?: string; body: string }>({
       query: (data) => ({ url: "/contacts/notes/", method: "POST", body: data }),
-      invalidatesTags: [{ type: "ContactNote", id: "LIST" }],
+      // Jobs expose last_call_at derived from notes, so refresh the jobs cache too
+      invalidatesTags: (_r, _e, { job_id }) => [
+        { type: "ContactNote", id: "LIST" },
+        { type: "Job", id: "LIST" },
+        ...(job_id ? [{ type: "Job" as const, id: job_id }] : []),
+      ],
     }),
     updateContactNote: build.mutation<ContactNote, { id: string; body: { body: string } }>({
       query: ({ id, body }) => ({ url: `/contacts/notes/${id}/`, method: "PATCH", body }),
@@ -38,7 +43,8 @@ export const contactsApi = baseApi.injectEndpoints({
     }),
     deleteContactNote: build.mutation<void, string>({
       query: (id) => ({ url: `/contacts/notes/${id}/`, method: "DELETE" }),
-      invalidatesTags: [{ type: "ContactNote", id: "LIST" }],
+      // Deleting the latest note changes last_call_at on the job
+      invalidatesTags: [{ type: "ContactNote", id: "LIST" }, { type: "Job", id: "LIST" }],
     }),
   }),
 });

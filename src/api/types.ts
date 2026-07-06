@@ -26,11 +26,12 @@ export type Job = {
   series_count: number | null;
   child_job_ids?: string[];
   staff_ids: string[];
+  last_call_at: string | null;
   created_at: string;
   updated_at: string;
 };
 
-export type JobInsert = Omit<Job, "id" | "created_at" | "updated_at" | "staff_ids"> & {
+export type JobInsert = Omit<Job, "id" | "created_at" | "updated_at" | "staff_ids" | "last_call_at"> & {
   occurrences?: number;
   staff_ids?: string[];
   product_lines?: JobProductLine[];
