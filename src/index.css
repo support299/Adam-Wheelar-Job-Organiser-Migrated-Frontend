@@ -126,6 +126,27 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
   }
+  /* Chrome lays the picker icon out in flow after the date text, so it drifts
+     out of the field once the input is narrow. Pin it to the right edge. */
+  input[type="date"] {
+    position: relative;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    margin: 0;
+    padding: 0;
+    width: 1rem;
+    height: 1rem;
+    opacity: 0.5;
+    cursor: pointer;
+  }
+  /* iOS centres the value in a shrunken field; keep it aligned with other inputs. */
+  input[type="date"]::-webkit-date-and-time-value {
+    text-align: left;
+  }
 }
 
 .pac-container {

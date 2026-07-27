@@ -121,29 +121,29 @@ export function PlansPage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-2 sm:px-4 py-3 sm:py-6 space-y-3 sm:space-y-4">
-        <Card className="p-3 grid gap-2 sm:gap-3 grid-cols-2 sm:grid-cols-4">
-          <div className="grid gap-1">
+        <Card className="p-3 grid gap-2 sm:gap-3 grid-cols-1 min-[380px]:grid-cols-2 sm:grid-cols-4">
+          <div className="grid gap-1 min-w-0">
             <Label className="text-xs">From</Label>
-            <Input type="date" className="h-9 text-sm" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+            <Input type="date" className="h-9 text-sm min-w-0 pl-2 pr-7" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
           </div>
-          <div className="grid gap-1">
+          <div className="grid gap-1 min-w-0">
             <Label className="text-xs">To</Label>
-            <Input type="date" className="h-9 text-sm" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+            <Input type="date" className="h-9 text-sm min-w-0 pl-2 pr-7" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
           </div>
-          <div className="grid gap-1">
+          <div className="grid gap-1 min-w-0">
             <Label className="text-xs">Staff</Label>
             <Select value={staffFilter} onValueChange={setStaffFilter}>
-              <SelectTrigger className="h-9 text-xs sm:text-sm"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9 text-xs sm:text-sm min-w-0 px-2"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All staff</SelectItem>
                 {visibleStaff.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
-          <div className="grid gap-1">
+          <div className="grid gap-1 min-w-0">
             <Label className="text-xs">Status</Label>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-9 text-xs sm:text-sm"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9 text-xs sm:text-sm min-w-0 px-2"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All statuses</SelectItem>
                 {(Object.keys(JOB_PROGRESS_LABELS) as JobProgressStatus[]).map((s) => (
