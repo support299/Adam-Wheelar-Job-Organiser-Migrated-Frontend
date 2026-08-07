@@ -189,29 +189,31 @@ export function PlansPage() {
                           {p.road_minutes != null && <>~{p.road_minutes} min</>}
                         </div>
                       )}
-                      {orderedIds.length > 0 && (
-                        <PlanJobList
-                          planId={p.id}
-                          orderedIds={orderedIds}
-                          jobById={planJobById}
-                          progressRows={p.progress ?? []}
-                          jobProductsMap={jobProductsMap}
-                          staffName={staffName}
-                          productName={productName}
-                          expanded={expanded}
-                          setExpanded={setExpanded}
-                          onEditJob={setEditingJob}
-                        />
-                      )}
-                      {p.notes && <div className="text-xs text-muted-foreground mt-2 border-t pt-2">{p.notes}</div>}
                     </div>
-                    <Button variant="ghost" size="icon" className="shrink-0" onClick={() => handleDelete(p.id)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="shrink-0" onClick={() => setEditingPlan(p)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <Button variant="ghost" size="icon" className="cursor-pointer" onClick={() => setEditingPlan(p)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="cursor-pointer" onClick={() => handleDelete(p.id)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
                   </div>
+                  {orderedIds.length > 0 && (
+                    <PlanJobList
+                      planId={p.id}
+                      orderedIds={orderedIds}
+                      jobById={planJobById}
+                      progressRows={p.progress ?? []}
+                      jobProductsMap={jobProductsMap}
+                      staffName={staffName}
+                      productName={productName}
+                      expanded={expanded}
+                      setExpanded={setExpanded}
+                      onEditJob={setEditingJob}
+                    />
+                  )}
+                  {p.notes && <div className="text-xs text-muted-foreground mt-2 border-t pt-2 break-words">{p.notes}</div>}
                 </Card>
               );
             })}
