@@ -20,6 +20,7 @@ export type Job = {
   sale_date: string | null;
   call_status: string | null;
   calls_made: number;
+  completed_at: string | null;
   duration: number;
   parent_job_id: string | null;
   occurrence_index: number | null;

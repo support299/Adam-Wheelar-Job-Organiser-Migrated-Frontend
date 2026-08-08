@@ -34,25 +34,24 @@ export function AddressAutocomplete({ value, onChange, onSelect, placeholder }: 
 
     const guardedAttr = "data-pac-guarded";
 
-    const positionContainer = (el: HTMLElement, host: HTMLElement) => {
+    // Fixed positioning is viewport-relative regardless of scroll or which
+    // scrollable ancestor (dialog body, page body) the input sits in, so no
+    // "host" element or containing-block math is needed — this works the same
+    // whether the field is inside the modal's Dialog or a plain page.
+    const positionContainer = (el: HTMLElement) => {
       const input = inputRef.current;
       if (!input) return;
       const inputRect = input.getBoundingClientRect();
-      const hostRect = host.getBoundingClientRect();
-      el.style.position = "absolute";
-      el.style.left = `${Math.round(inputRect.left - hostRect.left)}px`;
-      el.style.top = `${Math.round(inputRect.bottom - hostRect.top)}px`;
+      el.style.position = "fixed";
+      el.style.left = `${Math.round(inputRect.left)}px`;
+      el.style.top = `${Math.round(inputRect.bottom)}px`;
       el.style.width = `${Math.round(inputRect.width)}px`;
       el.style.zIndex = "10000";
     };
 
     const guardContainer = (el: HTMLElement) => {
-      const host =
-        inputRef.current?.closest<HTMLElement>("[role='dialog']") ??
-        inputRef.current?.parentElement;
-      if (!host) return;
-      if (el.parentElement !== host) host.appendChild(el);
-      positionContainer(el, host);
+      if (el.parentElement !== document.body) document.body.appendChild(el);
+      positionContainer(el);
       if (el.getAttribute(guardedAttr)) return;
       el.setAttribute(guardedAttr, "1");
       const markSelecting = () => {

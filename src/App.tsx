@@ -12,6 +12,7 @@ import { ContactsListPage } from "@/pages/ContactsListPage";
 import { ContactDetailPage } from "@/pages/ContactDetailPage";
 import { ContactJobsPage } from "@/pages/ContactJobsPage";
 import { AdminMapsKeyPage } from "@/pages/AdminMapsKeyPage";
+import { MigrateJobPage } from "@/pages/MigrateJobPage";
 
 function HomeRoute() {
   const isAdmin = useSelector(selectIsAdmin);
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="/connect" element={<AccessGate><ConnectPage /></AccessGate>} />
         <Route path="/contacts" element={<AccessGate><ContactsListPage /></AccessGate>} />
         <Route path="/contacts/:contactId" element={<AccessGate><ContactDetailPage /></AccessGate>} />
+        <Route path="/migrate-job" element={<AccessGate><MigrateJobPage /></AccessGate>} />
         <Route path="/admin/maps-key" element={<AdminMapsKeyPage />} />
       </Routes>
     </>
