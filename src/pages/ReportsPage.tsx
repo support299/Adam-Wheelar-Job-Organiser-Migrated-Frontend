@@ -233,7 +233,6 @@ export function ReportsPage() {
             <h1 className="text-lg sm:text-xl font-semibold tracking-tight">Staff Reports</h1>
             <p className="text-[11px] sm:text-xs text-muted-foreground">Saved plans, assigned jobs, and travel per staff member</p>
           </div>
-          <Button variant="outline" size="sm" asChild><Link to="/dashboard">Dashboard</Link></Button>
         </div>
       </header>
 
