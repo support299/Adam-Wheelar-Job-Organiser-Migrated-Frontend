@@ -41,3 +41,17 @@ export function optimizeOrder(
   }
   return { order, totalDistance, totalDuration };
 }
+
+export function routeStatsForOrder(
+  order: number[],
+  distance: number[][],
+  duration: number[][],
+): { totalDistance: number; totalDuration: number } {
+  let totalDistance = 0;
+  let totalDuration = 0;
+  for (let i = 1; i < order.length; i++) {
+    totalDistance += distance[order[i - 1]][order[i]];
+    totalDuration += duration[order[i - 1]][order[i]];
+  }
+  return { totalDistance, totalDuration };
+}

@@ -52,7 +52,7 @@ import { useGetDistanceMatrixMutation } from "@/api/mapsApi";
 import { useCreatePlanMutation, useListPlansQuery } from "@/api/plansApi";
 import { JobFormDialog } from "@/components/jobs/JobFormDialog";
 import { JobMap } from "@/components/jobs/JobMap";
-import { optimizeOrder } from "@/lib/directions";
+import { optimizeOrder, routeStatsForOrder } from "@/lib/directions";
 import {
   addFrequency,
   FREQUENCY_LABELS,
@@ -1266,8 +1266,20 @@ function DailyPlanner({
         ...pool.map((j) => ({ lat: j.lat, lng: j.lng })),
       ];
       const matrix = await getDistanceMatrix({ points }).unwrap();
-      const cost = optimizeMetric === "time" ? matrix.duration : matrix.distance;
-      const { order, totalDistance, totalDuration } = optimizeOrder(cost, matrix.distance, matrix.duration, 0, routeShape === "round");
+      const roundTrip = routeShape === "round";
+      let order: number[];
+      let totalDistance: number;
+      let totalDuration: number;
+      if (optimizeMetric === "time") {
+        // Order by booked appointment time, not by drive time.
+        const idxById = new Map(pool.map((j, i) => [j.id, i + 1]));
+        const sorted = [...pool].sort((a, b) => a.service_time.localeCompare(b.service_time));
+        order = [0, ...sorted.map((j) => idxById.get(j.id)!)];
+        if (roundTrip) order.push(0);
+        ({ totalDistance, totalDuration } = routeStatsForOrder(order, matrix.distance, matrix.duration));
+      } else {
+        ({ order, totalDistance, totalDuration } = optimizeOrder(matrix.distance, matrix.distance, matrix.duration, 0, roundTrip));
+      }
       const jobOrder = order
         .filter((idx, i) => idx !== 0 || (i !== 0 && i !== order.length - 1))
         .filter((idx) => idx !== 0)
@@ -1280,7 +1292,7 @@ function DailyPlanner({
       setSelectedIds(new Set(pool.map((j) => j.id)));
       setOrderedIds(jobOrder);
       setRouteStats({ roadKm: totalDistance / 1000, roadMinutes: Math.round(totalDuration / 60), legs });
-      toast.success(`Optimized by ${optimizeMetric === "time" ? "shortest time" : "shortest distance"}`);
+      toast.success(optimizeMetric === "time" ? "Ordered by booked time" : "Optimized by shortest distance");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to optimize route");
     } finally {
@@ -1420,7 +1432,7 @@ function DailyPlanner({
                 <Select value={optimizeMetric} onValueChange={(v) => setOptimizeMetric(v as "time" | "distance")}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="time">Shortest time</SelectItem>
+                    <SelectItem value="time">Shortest booking time</SelectItem>
                     <SelectItem value="distance">Shortest distance</SelectItem>
                   </SelectContent>
                 </Select>
