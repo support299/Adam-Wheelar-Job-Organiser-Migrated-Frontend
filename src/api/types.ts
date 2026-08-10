@@ -152,7 +152,7 @@ export type JobProgress = {
 };
 
 export type StaffPayout = {
-  id: string;
+  id: number;
   staff_id: string;
   period_from: string;
   period_to: string;

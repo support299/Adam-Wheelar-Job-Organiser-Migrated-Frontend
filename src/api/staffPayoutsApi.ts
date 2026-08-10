@@ -19,7 +19,7 @@ export const staffPayoutsApi = baseApi.injectEndpoints({
       query: (body) => ({ url: "/staff/payouts/", method: "POST", body }),
       invalidatesTags: [{ type: "Staff", id: "PAYOUTS" }],
     }),
-    deleteStaffPayout: build.mutation<void, string>({
+    deleteStaffPayout: build.mutation<void, number>({
       query: (id) => ({ url: `/staff/payouts/${id}/`, method: "DELETE" }),
       invalidatesTags: [{ type: "Staff", id: "PAYOUTS" }],
     }),

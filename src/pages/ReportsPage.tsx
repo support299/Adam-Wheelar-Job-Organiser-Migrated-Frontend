@@ -58,6 +58,8 @@ export function ReportsPage() {
   const [dateTo, setDateTo] = useState(() => currentWeekRange().to);
   const [staffOpen, setStaffOpen] = useState(false);
   const [payoutOpen, setPayoutOpen] = useState(false);
+  const [payoutFrom, setPayoutFrom] = useState("");
+  const [payoutTo, setPayoutTo] = useState("");
   const [payoutAmount, setPayoutAmount] = useState("");
   const [payoutNotes, setPayoutNotes] = useState("");
   const [savingPayout, setSavingPayout] = useState(false);
@@ -89,17 +91,18 @@ export function ReportsPage() {
     if (!selectedStaff) return;
     const amt = Number(payoutAmount);
     if (!amt || amt <= 0) { toast.error("Enter a payout amount"); return; }
-    if (!dateFrom || !dateTo) { toast.error("Set a From and To date for the payout period"); return; }
+    if (!payoutFrom || !payoutTo) { toast.error("Set a Start and End date for the payout period"); return; }
+    if (payoutFrom > payoutTo) { toast.error("Start date must be before end date"); return; }
     setSavingPayout(true);
     try {
-      await createPayout({ staff_id: selectedStaff, period_from: dateFrom, period_to: dateTo, amount: amt, notes: payoutNotes || null }).unwrap();
+      await createPayout({ staff_id: selectedStaff, period_from: payoutFrom, period_to: payoutTo, amount: amt, notes: payoutNotes || null }).unwrap();
       toast.success("Payout recorded");
       setPayoutOpen(false); setPayoutAmount(""); setPayoutNotes("");
     } catch { toast.error("Failed to save payout"); }
     finally { setSavingPayout(false); }
   }
 
-  async function handleDeletePayout(id: string) {
+  async function handleDeletePayout(id: number) {
     if (!confirm("Delete this payout?")) return;
     try { await deletePayout(id).unwrap(); }
     catch { toast.error("Failed to delete"); }
@@ -164,7 +167,11 @@ export function ReportsPage() {
             <Label className="text-xs">To</Label>
             <Input type="date" className="h-9" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
           </div>
-          <Button className="h-9 w-full" onClick={() => setPayoutOpen(true)} disabled={!isSingleStaff}>
+          <Button
+            className="h-9 w-full"
+            onClick={() => { setPayoutFrom(dateFrom); setPayoutTo(dateTo); setPayoutOpen(true); }}
+            disabled={!isSingleStaff}
+          >
             <Wallet className="h-4 w-4 mr-2" /> Record Payout
           </Button>
         </Card>
@@ -436,14 +443,24 @@ export function ReportsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Record Payout</DialogTitle>
-            <DialogDescription>{selectedStaffName} · {dateFrom || "—"} to {dateTo || "—"}</DialogDescription>
+            <DialogDescription>{selectedStaffName} · {payoutFrom || "—"} to {payoutTo || "—"}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
-            {(!dateFrom || !dateTo) && (
-              <div className="text-xs text-amber-600">Set a From and To date above to define the payout period.</div>
+            {(!payoutFrom || !payoutTo) && (
+              <div className="text-xs text-amber-600">Set a Start and End date to define the payout period.</div>
             )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1">
+                <Label className="text-xs">Start Date</Label>
+                <Input type="date" value={payoutFrom} onChange={(e) => setPayoutFrom(e.target.value)} />
+              </div>
+              <div className="grid gap-1">
+                <Label className="text-xs">End Date</Label>
+                <Input type="date" value={payoutTo} onChange={(e) => setPayoutTo(e.target.value)} />
+              </div>
+            </div>
             <div className="grid gap-1">
-              <Label className="text-xs">Period summary</Label>
+              <Label className="text-xs">Report period summary ({dateFrom || "—"} to {dateTo || "—"})</Label>
               <div className="text-xs text-muted-foreground rounded border p-2 grid gap-0.5">
                 <div>Plans: {staffPlans.length} · Jobs: {staffJobs.length}</div>
                 <div>Completed: {totals?.completed_count ?? 0} · Revenue: ${completedRevenue.toLocaleString()}</div>
