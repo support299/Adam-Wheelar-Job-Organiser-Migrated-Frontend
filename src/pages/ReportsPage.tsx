@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
+import { skipToken } from "@reduxjs/toolkit/query/react";
 import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,19 +18,20 @@ import {
 } from "@/components/ui/dialog";
 import {
   ArrowLeft, MapPin, CalendarClock, Route as RouteIcon, Clock, Briefcase,
-  CheckCircle2, ChevronsUpDown, Check, Wallet, Trash2, Pencil, Wrench, Hammer,
+  CheckCircle2, ChevronsUpDown, Check, Wallet, Trash2, Pencil, Wrench, Hammer, Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { currentWeekRange } from "@/lib/week";
 import { JobFormDialog } from "@/components/jobs/JobFormDialog";
-import type { Job, JobInsert } from "@/api/types";
+import type { JobInsert } from "@/api/types";
 import type { JobProductLine } from "@/api/types";
 import { useListStaffQuery } from "@/api/staffApi";
-import { useListJobsQuery, useUpdateJobMutation, useSetJobProductsMutation, useSetJobStaffMutation } from "@/api/jobsApi";
-import { useListPlansQuery, useListAllJobProgressQuery } from "@/api/plansApi";
+import { useGetJobQuery, useUpdateJobMutation, useSetJobProductsMutation, useSetJobStaffMutation } from "@/api/jobsApi";
+import { useGetStaffReportQuery, useGetStaffReportSummaryQuery } from "@/api/dashboardApi";
 import { useListStaffPayoutsQuery, useCreateStaffPayoutMutation, useDeleteStaffPayoutMutation } from "@/api/staffPayoutsApi";
-import { useListJobStaffQuery } from "@/api/staffApi";
+
+const ALL_STAFF = "__all__";
 
 function statusBadgeClass(s: string) {
   if (s === "completed") return "bg-emerald-500/15 text-emerald-700 border-emerald-500/30";
@@ -42,11 +44,7 @@ function statusBadgeClass(s: string) {
 
 export function ReportsPage() {
   const { data: staff = [] } = useListStaffQuery();
-  const { data: jobs = [], isLoading } = useListJobsQuery();
-  const { data: plans = [] } = useListPlansQuery();
-  const { data: allJobStaff = [] } = useListJobStaffQuery();
   const { data: payouts = [] } = useListStaffPayoutsQuery();
-  const { data: progress = [] } = useListAllJobProgressQuery();
   const [createPayout] = useCreateStaffPayoutMutation();
   const [deletePayout] = useDeleteStaffPayoutMutation();
   const [updateJob] = useUpdateJobMutation();
@@ -63,144 +61,29 @@ export function ReportsPage() {
   const [payoutAmount, setPayoutAmount] = useState("");
   const [payoutNotes, setPayoutNotes] = useState("");
   const [savingPayout, setSavingPayout] = useState(false);
-  const [editingJob, setEditingJob] = useState<Job | null>(null);
+  const [editingJobId, setEditingJobId] = useState<string | null>(null);
 
-  const jobStaffMap = useMemo(() => {
-    const m: Record<string, string[]> = {};
-    for (const r of allJobStaff) (m[r.job_id] ??= []).push(r.staff_id);
-    return m;
-  }, [allJobStaff]);
+  const isSingleStaff = !!selectedStaff && selectedStaff !== ALL_STAFF;
 
-  const inRange = useCallback((d: string) => {
-    if (dateFrom && d < dateFrom) return false;
-    if (dateTo && d > dateTo) return false;
-    return true;
-  }, [dateFrom, dateTo]);
+  const { data: report, isFetching: isLoading } = useGetStaffReportQuery(
+    isSingleStaff ? { staffId: selectedStaff, dateFrom, dateTo } : skipToken,
+  );
+  const staffPlans = report?.plans ?? [];
+  const staffJobs = report?.jobs ?? [];
+  const totals = report?.totals;
 
-  const staffPlans = useMemo(() => {
-    if (!selectedStaff) return [];
-    return plans
-      .filter((p) => (p.staff_ids ?? []).includes(selectedStaff))
-      .filter((p) => inRange(p.plan_date));
-  }, [plans, selectedStaff, inRange]);
+  const { data: summary, isFetching: isSummaryLoading } = useGetStaffReportSummaryQuery(
+    selectedStaff === ALL_STAFF ? { dateFrom, dateTo } : skipToken,
+  );
+  const summaryRows = summary?.staff ?? [];
 
-  const staffJobs = useMemo(() => {
-    if (!selectedStaff) return [];
-    return jobs
-      .filter((j) => (jobStaffMap[j.id] ?? []).includes(selectedStaff))
-      .filter((j) => inRange(j.service_date));
-  }, [jobs, jobStaffMap, selectedStaff, inRange]);
+  const { data: editingJobData } = useGetJobQuery(editingJobId ?? skipToken);
 
-  const totals = useMemo(() => {
-    const km = staffPlans.reduce((s, p) => s + Number(p.road_km ?? 0), 0);
-    const min = staffPlans.reduce((s, p) => s + Number(p.road_minutes ?? 0), 0);
-    const byStatus: Record<string, number> = {};
-    for (const j of staffJobs) byStatus[j.status] = (byStatus[j.status] ?? 0) + 1;
-    return { km, min, byStatus };
-  }, [staffPlans, staffJobs]);
-
-  const jobTravel = useMemo(() => {
-    const acc: Record<string, { km: number; min: number; visits: number }> = {};
-    for (const p of staffPlans) {
-      const ordered = (p.ordered_job_ids ?? []) as string[];
-      const legs = (p.legs as Array<{ distanceKm?: number; minutes?: number }>) ?? [];
-      ordered.forEach((jid, i) => {
-        const leg = legs[i];
-        const km = Number(leg?.distanceKm ?? 0);
-        const min = Number(leg?.minutes ?? 0);
-        const e = (acc[jid] ??= { km: 0, min: 0, visits: 0 });
-        e.km += km; e.min += min; e.visits += 1;
-      });
-    }
-    return acc;
-  }, [staffPlans]);
-
-  const jobActualKm = useMemo(() => {
-    const planIds = new Set(staffPlans.map((p) => p.id));
-    const acc: Record<string, number> = {};
-    for (const pr of progress) {
-      if (pr.staff_id !== selectedStaff) continue;
-      if (!planIds.has(pr.plan)) continue;
-      if (pr.actual_km == null) continue;
-      acc[pr.job_id] = (acc[pr.job_id] ?? 0) + Number(pr.actual_km);
-    }
-    return acc;
-  }, [progress, staffPlans, selectedStaff]);
-
-  const completedJobIds = useMemo(() => {
-    const planIds = new Set(staffPlans.map((p) => p.id));
-    const s = new Set<string>();
-    for (const pr of progress) {
-      if (pr.staff_id !== selectedStaff) continue;
-      if (!planIds.has(pr.plan)) continue;
-      if (pr.status === "completed") s.add(pr.job_id);
-    }
-    return s;
-  }, [progress, selectedStaff, staffPlans]);
-
-  const jobsById = useMemo(() => {
-    const m: Record<string, Job> = {};
-    for (const j of jobs) m[j.id] = j;
-    return m;
-  }, [jobs]);
-
-  const completedRevenue = useMemo(() => {
-    const ids = new Set<string>();
-    for (const j of staffJobs) if (j.status === "completed") ids.add(j.id);
-    for (const id of completedJobIds) ids.add(id);
-    let total = 0; let count = 0;
-    for (const id of ids) {
-      const j = jobsById[id];
-      if (!j) continue;
-      total += Number(j.service_value ?? 0); count += 1;
-    }
-    return { total, count };
-  }, [staffJobs, completedJobIds, jobsById]);
-
-  const revenueSplit = useMemo(() => {
-    const ids = new Set<string>();
-    for (const j of staffJobs) if (j.status === "completed") ids.add(j.id);
-    for (const id of completedJobIds) ids.add(id);
-    let serviceTotal = 0; let serviceCount = 0; let installTotal = 0; let installCount = 0;
-    for (const id of ids) {
-      const j = jobsById[id]; if (!j) continue;
-      const val = Number(j.service_value ?? 0);
-      if (j.service_type === "installation") { installTotal += val; installCount += 1; }
-      else { serviceTotal += val; serviceCount += 1; }
-    }
-    return { serviceTotal, serviceCount, installTotal, installCount };
-  }, [staffJobs, completedJobIds, jobsById]);
-
-  const jobActualTime = useMemo(() => {
-    const planIds = new Set(staffPlans.map((p) => p.id));
-    const acc: Record<string, string> = {};
-    for (const pr of progress) {
-      if (pr.staff_id !== selectedStaff || !planIds.has(pr.plan) || pr.status !== "completed") continue;
-      const d = new Date(pr.updated_at);
-      acc[pr.job_id] = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    }
-    return acc;
-  }, [progress, staffPlans, selectedStaff]);
-
-  const planCompletedValue = useMemo(() => {
-    const acc: Record<string, { value: number; count: number }> = {};
-    for (const p of staffPlans) {
-      const ordered = (p.ordered_job_ids ?? []) as string[];
-      let value = 0; let count = 0;
-      for (const jid of ordered) {
-        const j = jobsById[jid]; if (!j) continue;
-        if (completedJobIds.has(jid) || j.status === "completed") { value += Number(j.service_value ?? 0); count += 1; }
-      }
-      acc[p.id] = { value, count };
-    }
-    return acc;
-  }, [staffPlans, jobsById, completedJobIds]);
-
-  const totalActualKm = useMemo(() => Object.values(jobActualKm).reduce((s, v) => s + v, 0), [jobActualKm]);
   const selectedStaffName = staff.find((s) => s.id === selectedStaff)?.name ?? "Select staff";
-  const staffPayouts = useMemo(() => payouts.filter((p) => p.staff_id === selectedStaff), [payouts, selectedStaff]);
-  const totalPayouts = useMemo(() => staffPayouts.reduce((s, p) => s + Number(p.amount ?? 0), 0), [staffPayouts]);
-  const payoutPct = completedRevenue.total > 0 ? (totalPayouts / completedRevenue.total) * 100 : 0;
+  const staffPayouts = payouts.filter((p) => p.staff_id === selectedStaff);
+  const totalPayouts = staffPayouts.reduce((s, p) => s + Number(p.amount ?? 0), 0);
+  const completedRevenue = (totals?.service_revenue ?? 0) + (totals?.install_revenue ?? 0);
+  const payoutPct = completedRevenue > 0 ? (totalPayouts / completedRevenue) * 100 : 0;
 
   async function handleSavePayout() {
     if (!selectedStaff) return;
@@ -243,7 +126,9 @@ export function ReportsPage() {
             <Popover open={staffOpen} onOpenChange={setStaffOpen}>
               <PopoverTrigger asChild>
                 <Button variant="outline" role="combobox" aria-expanded={staffOpen} className="h-9 justify-between font-normal">
-                  <span className="truncate">{selectedStaff ? (staff.find((s) => s.id === selectedStaff)?.name ?? "Select staff") : "Select staff"}</span>
+                  <span className="truncate">
+                    {selectedStaff === ALL_STAFF ? "All Staff" : selectedStaff ? (staff.find((s) => s.id === selectedStaff)?.name ?? "Select staff") : "Select staff"}
+                  </span>
                   <ChevronsUpDown className="h-4 w-4 opacity-50 shrink-0" />
                 </Button>
               </PopoverTrigger>
@@ -253,6 +138,11 @@ export function ReportsPage() {
                   <CommandList>
                     <CommandEmpty>No staff found.</CommandEmpty>
                     <CommandGroup>
+                      <CommandItem value="All Staff" onSelect={() => { setSelectedStaff(ALL_STAFF); setStaffOpen(false); }}>
+                        <Check className={cn("mr-2 h-4 w-4", selectedStaff === ALL_STAFF ? "opacity-100" : "opacity-0")} />
+                        <Users className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                        <span className="flex-1 truncate">All Staff</span>
+                      </CommandItem>
                       {staff.map((s) => (
                         <CommandItem key={s.id} value={`${s.name} ${s.email ?? ""}`} onSelect={() => { setSelectedStaff(s.id); setStaffOpen(false); }}>
                           <Check className={cn("mr-2 h-4 w-4", selectedStaff === s.id ? "opacity-100" : "opacity-0")} />
@@ -274,15 +164,68 @@ export function ReportsPage() {
             <Label className="text-xs">To</Label>
             <Input type="date" className="h-9" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
           </div>
-          <Button className="h-9 w-full" onClick={() => setPayoutOpen(true)} disabled={!selectedStaff}>
+          <Button className="h-9 w-full" onClick={() => setPayoutOpen(true)} disabled={!isSingleStaff}>
             <Wallet className="h-4 w-4 mr-2" /> Record Payout
           </Button>
         </Card>
 
-        {isLoading ? (
-          <div className="text-sm text-muted-foreground py-12 text-center">Loading…</div>
-        ) : !selectedStaff ? (
+        {!selectedStaff ? (
           <Card className="p-12 text-center text-muted-foreground">Pick a staff member to view their report.</Card>
+        ) : selectedStaff === ALL_STAFF ? (
+          isSummaryLoading ? (
+            <div className="text-sm text-muted-foreground py-12 text-center">Loading…</div>
+          ) : (
+            <Card className="p-4">
+              <h2 className="font-semibold text-sm mb-3">All Staff — {dateFrom || "—"} to {dateTo || "—"}</h2>
+              {summaryRows.length === 0 ? (
+                <div className="text-xs text-muted-foreground py-6 text-center">No staff found.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="text-xs text-muted-foreground border-b">
+                      <tr>
+                        <th className="text-left py-2 px-2">Staff</th>
+                        <th className="text-right py-2 px-2">Plans</th>
+                        <th className="text-right py-2 px-2">Jobs</th>
+                        <th className="text-right py-2 px-2">Completed</th>
+                        <th className="text-right py-2 px-2">Allocated km</th>
+                        <th className="text-right py-2 px-2">Actual km</th>
+                        <th className="text-right py-2 px-2">Service $</th>
+                        <th className="text-right py-2 px-2">Install $</th>
+                        <th className="text-right py-2 px-2">Total $</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {summaryRows.map((r) => (
+                        <tr
+                          key={r.id}
+                          className="border-b last:border-0 cursor-pointer hover:bg-muted/50"
+                          onClick={() => setSelectedStaff(r.id)}
+                        >
+                          <td className="py-2 px-2">
+                            <span className="inline-flex items-center gap-1.5">
+                              {r.name}
+                              {!r.active && <span className="text-[10px] text-muted-foreground">inactive</span>}
+                            </span>
+                          </td>
+                          <td className="py-2 px-2 text-right">{r.plans_count}</td>
+                          <td className="py-2 px-2 text-right">{r.jobs_count}</td>
+                          <td className="py-2 px-2 text-right">{r.completed_count}</td>
+                          <td className="py-2 px-2 text-right">{r.allocated_km.toFixed(1)}</td>
+                          <td className="py-2 px-2 text-right">{r.actual_km.toFixed(1)}</td>
+                          <td className="py-2 px-2 text-right text-emerald-600">${r.service_revenue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                          <td className="py-2 px-2 text-right text-blue-600">${r.install_revenue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                          <td className="py-2 px-2 text-right font-medium">${r.total_revenue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
+          )
+        ) : isLoading || !totals ? (
+          <div className="text-sm text-muted-foreground py-12 text-center">Loading…</div>
         ) : (
           <>
             <section className="grid gap-3 grid-cols-2 md:grid-cols-4">
@@ -298,23 +241,23 @@ export function ReportsPage() {
                   <Briefcase className="h-5 w-5" />{staffJobs.length}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  <CheckCircle2 className="h-3 w-3 inline mr-0.5 text-emerald-600" />{totals.byStatus.completed ?? 0} completed
+                  <CheckCircle2 className="h-3 w-3 inline mr-0.5 text-emerald-600" />{totals.completed_count} completed
                 </div>
               </Card>
               <Card className="p-4">
                 <div className="text-xs uppercase tracking-wide text-muted-foreground">Distance Travelled</div>
                 <div className="mt-1 text-2xl font-semibold flex items-center gap-2">
-                  <RouteIcon className="h-5 w-5 text-amber-600" />{totalActualKm.toFixed(1)} km
+                  <RouteIcon className="h-5 w-5 text-amber-600" />{totals.actual_km.toFixed(1)} km
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  Allocated: {totals.km.toFixed(1)} km
-                  {totals.km > 0 && <> · {((totalActualKm / totals.km) * 100).toFixed(0)}%</>}
+                  Allocated: {totals.allocated_km.toFixed(1)} km
+                  {totals.allocated_km > 0 && <> · {((totals.actual_km / totals.allocated_km) * 100).toFixed(0)}%</>}
                 </div>
               </Card>
               <Card className="p-4">
                 <div className="text-xs uppercase tracking-wide text-muted-foreground">Time on Road</div>
                 <div className="mt-1 text-2xl font-semibold flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-amber-600" />{Math.floor(totals.min / 60)}h {totals.min % 60}m
+                  <Clock className="h-5 w-5 text-amber-600" />{Math.floor(totals.allocated_min / 60)}h {totals.allocated_min % 60}m
                 </div>
               </Card>
             </section>
@@ -323,16 +266,16 @@ export function ReportsPage() {
               <Card className="p-4">
                 <div className="text-xs uppercase tracking-wide text-muted-foreground">Service Revenue</div>
                 <div className="mt-1 text-2xl font-semibold flex items-center gap-2 text-emerald-600">
-                  <Wrench className="h-5 w-5" />${revenueSplit.serviceTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  <Wrench className="h-5 w-5" />${totals.service_revenue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                 </div>
-                <div className="text-xs text-muted-foreground mt-1">{revenueSplit.serviceCount} service job{revenueSplit.serviceCount === 1 ? "" : "s"}</div>
+                <div className="text-xs text-muted-foreground mt-1">{totals.service_count} service job{totals.service_count === 1 ? "" : "s"}</div>
               </Card>
               <Card className="p-4">
                 <div className="text-xs uppercase tracking-wide text-muted-foreground">Install Revenue</div>
                 <div className="mt-1 text-2xl font-semibold flex items-center gap-2 text-blue-600">
-                  <Hammer className="h-5 w-5" />${revenueSplit.installTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  <Hammer className="h-5 w-5" />${totals.install_revenue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                 </div>
-                <div className="text-xs text-muted-foreground mt-1">{revenueSplit.installCount} install{revenueSplit.installCount === 1 ? "" : "s"}</div>
+                <div className="text-xs text-muted-foreground mt-1">{totals.install_count} install{totals.install_count === 1 ? "" : "s"}</div>
               </Card>
               <Card className="p-4">
                 <div className="flex items-center justify-between">
@@ -370,12 +313,12 @@ export function ReportsPage() {
                           <td className="py-2 px-2 whitespace-nowrap">{p.plan_date}</td>
                           <td className="py-2 px-2">{p.name}</td>
                           <td className="py-2 px-2 text-muted-foreground">{p.base_name ?? "—"}</td>
-                          <td className="py-2 px-2 text-right">{(p.ordered_job_ids ?? []).length}</td>
+                          <td className="py-2 px-2 text-right">{p.stops}</td>
                           <td className="py-2 px-2 text-right">{p.road_km != null ? `${Number(p.road_km).toFixed(1)} km` : "—"}</td>
                           <td className="py-2 px-2 text-right">{p.road_minutes != null ? `${p.road_minutes} min` : "—"}</td>
                           <td className="py-2 px-2 text-right">
-                            <span className="text-emerald-600 font-medium">${planCompletedValue[p.id]?.value.toLocaleString(undefined, { maximumFractionDigits: 2 }) ?? "0"}</span>
-                            <span className="text-[10px] text-muted-foreground ml-1">({planCompletedValue[p.id]?.count ?? 0})</span>
+                            <span className="text-emerald-600 font-medium">${p.completed_value.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                            <span className="text-[10px] text-muted-foreground ml-1">({p.completed_count})</span>
                           </td>
                         </tr>
                       ))}
@@ -410,10 +353,9 @@ export function ReportsPage() {
                     </thead>
                     <tbody>
                       {staffJobs.map((j) => {
-                        const t = jobTravel[j.id];
-                        const actual = jobActualKm[j.id];
-                        const actualTime = jobActualTime[j.id];
-                        const isCompleted = j.status === "completed" || completedJobIds.has(j.id);
+                        const actualTime = j.actual_time
+                          ? new Date(j.actual_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                          : null;
                         return (
                           <tr key={j.id} className="border-b last:border-0">
                             <td className="py-2 px-2 whitespace-nowrap">{j.service_date}</td>
@@ -426,16 +368,16 @@ export function ReportsPage() {
                             </td>
                             <td className="py-2 px-2"><Badge variant="outline" className="capitalize">{j.service_type}</Badge></td>
                             <td className="py-2 px-2"><Badge variant="outline" className={statusBadgeClass(j.status)}>{j.status}</Badge></td>
-                            <td className={cn("py-2 px-2 text-right", isCompleted && "text-emerald-600 font-medium")}>
+                            <td className={cn("py-2 px-2 text-right", j.is_completed && "text-emerald-600 font-medium")}>
                               ${Number(j.service_value ?? 0).toLocaleString()}
                             </td>
                             <td className="py-2 px-2 text-right whitespace-nowrap">{j.service_time ? j.service_time.slice(0, 5) : "—"}</td>
                             <td className="py-2 px-2 text-right whitespace-nowrap">{actualTime ?? "—"}</td>
-                            <td className="py-2 px-2 text-right">{t ? t.km.toFixed(1) : "—"}</td>
-                            <td className="py-2 px-2 text-right">{actual != null ? actual.toFixed(1) : "—"}</td>
-                            <td className="py-2 px-2 text-right">{t ? t.min : "—"}</td>
+                            <td className="py-2 px-2 text-right">{j.travel_km != null ? j.travel_km.toFixed(1) : "—"}</td>
+                            <td className="py-2 px-2 text-right">{j.actual_km != null ? j.actual_km.toFixed(1) : "—"}</td>
+                            <td className="py-2 px-2 text-right">{j.travel_min != null ? j.travel_min : "—"}</td>
                             <td className="py-2 px-2 text-right">
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingJob(j)} title="Edit job">
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingJobId(j.id)} title="Edit job">
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
                             </td>
@@ -504,8 +446,8 @@ export function ReportsPage() {
               <Label className="text-xs">Period summary</Label>
               <div className="text-xs text-muted-foreground rounded border p-2 grid gap-0.5">
                 <div>Plans: {staffPlans.length} · Jobs: {staffJobs.length}</div>
-                <div>Completed: {totals.byStatus.completed ?? 0} · Revenue: ${completedRevenue.total.toLocaleString()}</div>
-                <div>Distance: {totals.km.toFixed(1)} km · Time: {Math.floor(totals.min / 60)}h {totals.min % 60}m</div>
+                <div>Completed: {totals?.completed_count ?? 0} · Revenue: ${completedRevenue.toLocaleString()}</div>
+                <div>Distance: {(totals?.allocated_km ?? 0).toFixed(1)} km · Time: {Math.floor((totals?.allocated_min ?? 0) / 60)}h {(totals?.allocated_min ?? 0) % 60}m</div>
               </div>
             </div>
             <div className="grid gap-1">
@@ -525,17 +467,17 @@ export function ReportsPage() {
       </Dialog>
 
       <JobFormDialog
-        open={!!editingJob}
-        onOpenChange={(v) => { if (!v) setEditingJob(null); }}
-        job={editingJob}
+        open={!!editingJobId}
+        onOpenChange={(v) => { if (!v) setEditingJobId(null); }}
+        job={editingJobData ?? null}
         onSubmit={async (data: JobInsert, extras: { staffIds: string[]; lineItems: JobProductLine[] }) => {
-          if (!editingJob) return;
+          if (!editingJobId) return;
           try {
-            await updateJob({ id: editingJob.id, body: data }).unwrap();
-            await setJobStaff({ jobId: editingJob.id, staffIds: extras.staffIds }).unwrap();
-            await setJobProducts({ jobId: editingJob.id, lines: extras.lineItems }).unwrap();
+            await updateJob({ id: editingJobId, body: data }).unwrap();
+            await setJobStaff({ jobId: editingJobId, staffIds: extras.staffIds }).unwrap();
+            await setJobProducts({ jobId: editingJobId, lines: extras.lineItems }).unwrap();
             toast.success("Job updated");
-            setEditingJob(null);
+            setEditingJobId(null);
           } catch { toast.error("Failed to update job"); }
         }}
       />

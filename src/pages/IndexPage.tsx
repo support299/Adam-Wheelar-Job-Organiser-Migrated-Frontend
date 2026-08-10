@@ -18,7 +18,7 @@ import {
   Plus, Pencil, Trash2, MapPin, Sparkles, Search, ArrowUp, ArrowDown,
   CalendarIcon, CalendarClock, Settings as SettingsIcon, Users, History,
   Circle as CircleIcon, ExternalLink, Phone, PhoneCall, PhoneForwarded, Copy, BarChart3, Clock,
-  LogOut, RefreshCw, ChevronDown,
+  LogOut, RefreshCw, ChevronDown, LayoutDashboard,
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -1787,6 +1787,9 @@ export function IndexPage() {
             </Button>
             <Button variant="outline" size="sm" asChild>
               <Link to="/contacts"><History className="h-4 w-4 sm:mr-2" /><span className="hidden sm:inline">Job History</span></Link>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/dashboard"><LayoutDashboard className="h-4 w-4 sm:mr-2" /><span className="hidden sm:inline">Dashboard</span></Link>
             </Button>
             <Button variant="outline" size="sm" asChild>
               <Link to="/reports"><BarChart3 className="h-4 w-4 sm:mr-2" /><span className="hidden sm:inline">Staff Reports</span></Link>

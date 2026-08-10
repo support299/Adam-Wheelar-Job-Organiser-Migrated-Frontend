@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { AccessGate } from "@/components/auth/AccessGate";
 import { selectIsAdmin } from "@/store/authSlice";
 import { IndexPage } from "@/pages/IndexPage";
+import DashboardPage from "@/pages/DashboardPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { PlansPage } from "@/pages/PlansPage";
 import { ReportsPage } from "@/pages/ReportsPage";
@@ -30,6 +31,7 @@ export default function App() {
 
         {/* Main app routes */}
         <Route path="/" element={<HomeRoute />} />
+        <Route path="/dashboard" element={<AccessGate><DashboardPage /></AccessGate>} />
         <Route path="/settings" element={<AccessGate><SettingsPage /></AccessGate>} />
         <Route path="/plans" element={<AccessGate><PlansPage /></AccessGate>} />
         <Route path="/reports" element={<AccessGate><ReportsPage /></AccessGate>} />
