@@ -31,14 +31,10 @@ import { useListProductsQuery } from "@/api/productsApi";
 import { useListBaseLocationsQuery } from "@/api/locationsApi";
 
 function mapsUrl(j: Job): string {
-  const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
-  const isApple = /iPhone|iPad|iPod|Macintosh/.test(ua);
   if (Number.isFinite(j.lat) && Number.isFinite(j.lng)) {
-    if (isApple) return `https://maps.apple.com/?daddr=${j.lat},${j.lng}`;
     return `https://www.google.com/maps/dir/?api=1&destination=${j.lat},${j.lng}`;
   }
   const q = encodeURIComponent(j.address);
-  if (isApple) return `https://maps.apple.com/?daddr=${q}`;
   return `https://www.google.com/maps/dir/?api=1&destination=${q}`;
 }
 
