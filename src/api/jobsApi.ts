@@ -1,5 +1,5 @@
 import { baseApi } from "./baseApi";
-import type { Job, JobInsert, JobUpdate, JobProduct, JobProductLine, JobCompletion, JobCompletionInsert, PurchaseHistoryRow } from "./types";
+import type { Job, JobInsert, JobUpdate, JobProduct, JobProductLine, PurchaseHistoryRow } from "./types";
 
 export type Paginated<T> = {
   count: number;
@@ -111,25 +111,6 @@ export const jobsApi = baseApi.injectEndpoints({
       query: (params) => ({ url: '/jobs/purchase-history/', params }),
       providesTags: [{ type: 'Job', id: 'PURCHASE-HISTORY' }],
     }),
-    listJobCompletions: build.query<JobCompletion[], void>({
-      query: () => "/completions/?ordering=-completed_at",
-      providesTags: [{ type: "Job", id: "COMPLETIONS" }],
-    }),
-    createJobCompletion: build.mutation<JobCompletion, JobCompletionInsert>({
-      query: (body) => ({ url: "/completions/", method: "POST", body }),
-      invalidatesTags: [{ type: "Job", id: "COMPLETIONS" }],
-    }),
-    updateJobCompletion: build.mutation<
-      JobCompletion,
-      { id: string; body: Partial<JobCompletion> }
-    >({
-      query: ({ id, body }) => ({ url: `/completions/${id}/`, method: "PATCH", body }),
-      invalidatesTags: [{ type: "Job", id: "COMPLETIONS" }],
-    }),
-    deleteJobCompletion: build.mutation<void, string>({
-      query: (id) => ({ url: `/completions/${id}/`, method: "DELETE" }),
-      invalidatesTags: [{ type: "Job", id: "COMPLETIONS" }],
-    }),
   }),
 });
 
@@ -147,8 +128,4 @@ export const {
   useSetJobStaffMutation,
   useListPurchaseHistoryQuery,
   useLazyListPurchaseHistoryQuery,
-  useListJobCompletionsQuery,
-  useCreateJobCompletionMutation,
-  useUpdateJobCompletionMutation,
-  useDeleteJobCompletionMutation,
 } = jobsApi;

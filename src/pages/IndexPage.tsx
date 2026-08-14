@@ -44,7 +44,6 @@ import {
   useDeleteJobMutation,
   useSetJobStaffMutation,
   useSetJobProductsMutation,
-  useCreateJobCompletionMutation,
 } from "@/api/jobsApi";
 import { useListStaffQuery } from "@/api/staffApi";
 import { useListBaseLocationsQuery } from "@/api/locationsApi";
@@ -1614,7 +1613,6 @@ export function IndexPage() {
   const [deleteJob] = useDeleteJobMutation();
   const [setJobStaff] = useSetJobStaffMutation();
   const [setJobProducts] = useSetJobProductsMutation();
-  const [createCompletion] = useCreateJobCompletionMutation();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Job | null>(null);
@@ -1722,48 +1720,24 @@ export function IndexPage() {
   }, [pageResults]);
 
   async function handleSubmit(data: JobInsert, extras: { staffIds: string[]; lineItems: JobProductLine[] }) {
-    let rolledToDate: string | null = null;
     const isDone = (s: string) => s === "completed" || s === "skip";
+    let rolledToDate: string | null = null;
     if (editing) {
       const wasCompleted = isDone(editing.status);
       const nowCompleted = isDone(data.status);
-      if (!wasCompleted && nowCompleted) {
-        try {
-          await createCompletion({
-            job_id: editing.id,
-            name: data.name,
-            email: data.email,
-            phone: data.phone ?? null,
-            address: data.address,
-            lat: data.lat,
-            lng: data.lng,
-            service_date: data.service_date,
-            service_time: data.service_time,
-            service_value: data.service_value,
-            notes: data.notes ?? null,
-            staff_ids: extras.staffIds,
-            product_lines: extras.lineItems,
-            service_type: data.service_type ?? "installation",
-            sale_date: data.sale_date ?? null,
-          }).unwrap();
-        } catch (e) {
-          toast.error(e instanceof Error ? `Completion not recorded: ${e.message}` : "Completion not recorded");
-        }
-      }
-      const isSeriesJob = !!(editing.parent_job_id || editing.occurrence_index);
-      if (!wasCompleted && nowCompleted && data.is_recurring && data.frequency && !isSeriesJob) {
+      // Backend auto-spawns the next occurrence (new Job row) when a recurring
+      // job transitions into completed/skip — see _spawn_next_occurrence.
+      if (!wasCompleted && nowCompleted && data.is_recurring && data.frequency) {
         rolledToDate = addFrequency(data.service_date, data.frequency as RecurrenceFrequency);
-        await updateJob({ id: editing.id, body: { ...data, service_date: rolledToDate, status: "pending", service_type: "servicing", sale_date: null } }).unwrap();
-      } else {
-        await updateJob({ id: editing.id, body: data }).unwrap();
       }
+      await updateJob({ id: editing.id, body: data }).unwrap();
       await setJobStaff({ jobId: editing.id, staffIds: extras.staffIds }).unwrap();
       await setJobProducts({ jobId: editing.id, lines: extras.lineItems }).unwrap();
     } else {
       await createJob({ ...data, staff_ids: extras.staffIds, product_lines: extras.lineItems }).unwrap();
     }
     if (rolledToDate) {
-      toast.success(`Recurring job rolled to ${rolledToDate}`);
+      toast.success(`Job completed — next visit scheduled ${rolledToDate}`);
     } else {
       toast.success(editing ? "Job updated" : "Job created");
     }

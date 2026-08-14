@@ -15,8 +15,8 @@ import { JobFormDialog } from "@/components/jobs/JobFormDialog";
 import { PurchasesAddresses } from "@/components/contacts/PurchasesAddresses";
 import { ContactActivity } from "@/components/contacts/ContactActivity";
 import { daysUntil, getDueTag, getDueTagLabel, DUE_TAG_LABELS, type DueTag, FREQUENCY_LABELS, type RecurrenceFrequency } from "@/lib/jobs";
-import type { Job, JobInsert, JobProductLine, JobCompletionInsert } from "@/api/types";
-import { useListJobsQuery, useCreateJobMutation, useUpdateJobMutation, useDeleteJobMutation, useSetJobProductsMutation, useSetJobStaffMutation, useListAllJobProductsQuery, useLazyListPurchaseHistoryQuery, useListJobCompletionsQuery, useDeleteJobCompletionMutation, useCreateJobCompletionMutation } from "@/api/jobsApi";
+import type { Job, JobInsert, JobProductLine } from "@/api/types";
+import { useListJobsQuery, useCreateJobMutation, useUpdateJobMutation, useDeleteJobMutation, useSetJobProductsMutation, useSetJobStaffMutation, useListAllJobProductsQuery, useLazyListPurchaseHistoryQuery } from "@/api/jobsApi";
 import { useListProductsQuery } from "@/api/productsApi";
 import { useListStaffQuery, useListJobStaffQuery } from "@/api/staffApi";
 import { useListGhlContactsQuery } from "@/api/contactsApi";
@@ -51,15 +51,12 @@ export function ContactJobsPage() {
   const { data: staff = [] } = useListStaffQuery();
   const { data: allJobStaff = [] } = useListJobStaffQuery();
   const { data: allJobProducts = [] } = useListAllJobProductsQuery(ghlContactId ? { ghl_contact_id: ghlContactId } : undefined);
-  const { data: allCompletions = [] } = useListJobCompletionsQuery();
   const [fetchPurchaseHistory, { data: purchaseHistory = [] }] = useLazyListPurchaseHistoryQuery();
   const [createJob] = useCreateJobMutation();
   const [updateJob] = useUpdateJobMutation();
   const [deleteJob] = useDeleteJobMutation();
   const [setJobProducts] = useSetJobProductsMutation();
   const [setJobStaff] = useSetJobStaffMutation();
-  const [createCompletion] = useCreateJobCompletionMutation();
-  const [deleteCompletion] = useDeleteJobCompletionMutation();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Job | null>(null);
@@ -84,17 +81,6 @@ export function ContactJobsPage() {
     for (const p of allJobProducts) (m[p.job_id] ??= []).push(p as JobProductRow);
     return m;
   }, [allJobProducts]);
-
-  const completions = useMemo(() => {
-    const emailLc = contact?.email?.toLowerCase() ?? null;
-    const phoneDigits = (contact?.phone ?? "").replace(/\D/g, "");
-    return allCompletions.filter((c) => {
-      if (emailLc && c.email && c.email.toLowerCase() === emailLc) return true;
-      const cd = (c.phone ?? "").replace(/\D/g, "");
-      if (phoneDigits.length >= 4 && cd.length >= 4 && cd === phoneDigits) return true;
-      return false;
-    });
-  }, [allCompletions, contact]);
 
   const contactKey = useMemo(() => {
     if (contact?.email) return `e:${contact.email}`;
@@ -126,37 +112,10 @@ export function ContactJobsPage() {
   const sortedJobs = useMemo(() => [...filteredJobs].sort((a, b) => b.service_date.localeCompare(a.service_date)), [filteredJobs]);
 
   async function handleSubmit(data: JobInsert, extras: { staffIds: string[]; lineItems: JobProductLine[] }) {
-    const isDone = (s: string | undefined) => s === "completed" || s === "skip";
-    const wasCompleted = isDone(editing?.status);
-    const nowCompleted = isDone(data.status);
     if (editing) {
       await updateJob({ id: editing.id, body: data }).unwrap();
       await setJobStaff({ jobId: editing.id, staffIds: extras.staffIds }).unwrap();
       await setJobProducts({ jobId: editing.id, lines: extras.lineItems }).unwrap();
-      if (!wasCompleted && nowCompleted) {
-        try {
-          const completionBody: JobCompletionInsert = {
-            job_id: editing.id,
-            service_date: data.service_date,
-            service_time: data.service_time ?? null,
-            service_value: Number(data.service_value) || 0,
-            name: data.name,
-            email: data.email,
-            phone: data.phone ?? null,
-            address: data.address,
-            lat: data.lat ?? 0,
-            lng: data.lng ?? 0,
-            notes: data.notes ?? null,
-            staff_ids: extras.staffIds,
-            product_lines: extras.lineItems,
-            service_type: data.service_type ?? "installation",
-            sale_date: data.sale_date ?? null,
-          };
-          await createCompletion(completionBody).unwrap();
-        } catch (e: unknown) {
-          toast.error(e instanceof Error ? `Completion not recorded: ${e.message}` : "Completion not recorded");
-        }
-      }
     } else {
       await createJob({ ...data, ghl_contact_id: ghlContactId ?? null, staff_ids: extras.staffIds, product_lines: extras.lineItems }).unwrap();
     }
@@ -170,13 +129,12 @@ export function ContactJobsPage() {
   }
 
   async function handleDeleteAddress(address: string) {
-    if (!confirm(`Delete all jobs and completion records at "${address}"?`)) return;
+    if (!confirm(`Delete all jobs at "${address}"?`)) return;
     try {
       const target = address.trim();
-      await Promise.all([
-        ...jobs.filter((j) => j.address.trim() === target).map((j) => deleteJob(j.id).unwrap()),
-        ...completions.filter((c) => c.address.trim() === target).map((c) => deleteCompletion(c.id).unwrap()),
-      ]);
+      await Promise.all(
+        jobs.filter((j) => j.address.trim() === target).map((j) => deleteJob(j.id).unwrap()),
+      );
       toast.success("Address removed");
     } catch { toast.error("Failed to delete address"); }
   }
@@ -345,7 +303,6 @@ export function ContactJobsPage() {
           <TabsContent value="purchases">
             <PurchasesAddresses
               jobs={jobs}
-              completions={completions}
               purchaseHistory={purchaseHistory}
               onDeleteAddress={handleDeleteAddress}
             />

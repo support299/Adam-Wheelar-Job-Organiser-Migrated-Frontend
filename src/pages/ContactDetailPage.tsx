@@ -5,20 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, MapPin, Mail, Phone, Package, CalendarClock, Calendar as CalendarIcon, Users, CheckCircle2, Pencil, Trash2 } from "lucide-react";
-import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { JobFormDialog } from "@/components/jobs/JobFormDialog";
 import { PurchasesAddresses } from "@/components/contacts/PurchasesAddresses";
 import { ContactActivity } from "@/components/contacts/ContactActivity";
 import { groupJobsByContact } from "./ContactsListPage";
 import { daysUntil, getDueTag, getDueTagLabel, type DueTag, FREQUENCY_LABELS, type RecurrenceFrequency } from "@/lib/jobs";
-import type { Job, JobInsert, JobCompletion, JobProductLine } from "@/api/types";
-import { useListJobsQuery, useUpdateJobMutation, useDeleteJobMutation, useSetJobProductsMutation, useSetJobStaffMutation, useListAllJobProductsQuery, useLazyListPurchaseHistoryQuery, useListJobCompletionsQuery, useUpdateJobCompletionMutation, useDeleteJobCompletionMutation } from "@/api/jobsApi";
+import type { Job, JobInsert, JobProductLine } from "@/api/types";
+import { useListJobsQuery, useUpdateJobMutation, useDeleteJobMutation, useSetJobProductsMutation, useSetJobStaffMutation, useListAllJobProductsQuery, useLazyListPurchaseHistoryQuery } from "@/api/jobsApi";
 import { useListProductsQuery } from "@/api/productsApi";
 import { useListStaffQuery, useListJobStaffQuery } from "@/api/staffApi";
 
@@ -60,7 +54,6 @@ export function ContactDetailPage() {
   const { data: products = [] } = useListProductsQuery();
   const { data: staff = [] } = useListStaffQuery();
   const { data: allJobStaff = [] } = useListJobStaffQuery();
-  const { data: completions = [] } = useListJobCompletionsQuery();
 
   // Derived before job products query so we can filter by ghl_contact_id
   const contact = useMemo(() => {
@@ -88,12 +81,8 @@ export function ContactDetailPage() {
   const [deleteJob] = useDeleteJobMutation();
   const [setJobProducts] = useSetJobProductsMutation();
   const [setJobStaff] = useSetJobStaffMutation();
-  const [updateCompletion] = useUpdateJobCompletionMutation();
-  const [deleteCompletion] = useDeleteJobCompletionMutation();
 
   const [editingJob, setEditingJob] = useState<Job | null>(null);
-  const [editingCompletion, setEditingCompletion] = useState<JobCompletion | null>(null);
-  const [completionForm, setCompletionForm] = useState({ service_date: "", service_value: "0", notes: "" });
 
   const jobStaffMap = useMemo(() => {
     const m: Record<string, string[]> = {};
@@ -107,19 +96,7 @@ export function ContactDetailPage() {
     return m;
   }, [allJobProducts]);
 
-  const contactCompletions = useMemo(() => {
-    if (!contact) return [];
-    const emails = new Set(contact.emails.map((e) => e.toLowerCase()));
-    const phones = new Set(contact.phones.map((p) => p.replace(/\D/g, "")).filter((p) => p.length >= 4));
-    return completions.filter((c) => {
-      if (c.email && emails.has(c.email.toLowerCase())) return true;
-      const digits = (c.phone ?? "").replace(/\D/g, "");
-      if (digits.length >= 4 && phones.has(digits)) return true;
-      return false;
-    });
-  }, [contact, completions]);
-
-  type HistoryEntry = | { kind: "job"; date: string; job: Job } | { kind: "completion"; date: string; completion: JobCompletion };
+  type HistoryEntry = { date: string; job: Job };
 
   const byLocation = useMemo(() => {
     if (!contact) return [] as { address: string; entries: HistoryEntry[] }[];
@@ -127,33 +104,23 @@ export function ContactDetailPage() {
     for (const j of contact.jobs) {
       const key = j.address.trim();
       const arr = map.get(key) ?? [];
-      arr.push({ kind: "job", date: j.service_date, job: j });
-      map.set(key, arr);
-    }
-    for (const c of contactCompletions) {
-      const key = c.address.trim();
-      const arr = map.get(key) ?? [];
-      arr.push({ kind: "completion", date: c.completed_at, completion: c });
+      arr.push({ date: j.service_date, job: j });
       map.set(key, arr);
     }
     return Array.from(map.entries()).map(([address, list]) => ({
       address,
       entries: list.sort((a, b) => b.date.localeCompare(a.date)),
     }));
-  }, [contact, contactCompletions]);
+  }, [contact]);
 
   const productName = (id: string) => products.find((p) => p.id === id)?.name ?? "Product";
   const staffName = (id: string) => staff.find((s) => s.id === id)?.name ?? "Unknown";
 
   async function handleDeleteAddress(address: string) {
-    if (!confirm(`Delete all jobs and completion records at "${address}" for this contact?`)) return;
+    if (!confirm(`Delete all jobs at "${address}" for this contact?`)) return;
     try {
       const jobsToDelete = (contact?.jobs ?? []).filter((j) => j.address.trim() === address.trim());
-      const compsToDelete = contactCompletions.filter((c) => c.address.trim() === address.trim());
-      await Promise.all([
-        ...jobsToDelete.map((j) => deleteJob(j.id).unwrap()),
-        ...compsToDelete.map((c) => deleteCompletion(c.id).unwrap()),
-      ]);
+      await Promise.all(jobsToDelete.map((j) => deleteJob(j.id).unwrap()));
       toast.success("Address removed");
     } catch { toast.error("Failed to delete address"); }
   }
@@ -173,30 +140,6 @@ export function ContactDetailPage() {
     if (!confirm("Delete this job? This cannot be undone.")) return;
     try { await deleteJob(id).unwrap(); toast.success("Job deleted"); }
     catch { toast.error("Failed to delete job"); }
-  }
-
-  function openEditCompletion(c: JobCompletion) {
-    setEditingCompletion(c);
-    setCompletionForm({ service_date: c.service_date, service_value: String(c.service_value ?? 0), notes: c.notes ?? "" });
-  }
-
-  async function saveCompletion() {
-    if (!editingCompletion) return;
-    try {
-      await updateCompletion({ id: editingCompletion.id, body: {
-        service_date: completionForm.service_date,
-        service_value: Number(completionForm.service_value) || 0,
-        notes: completionForm.notes || null,
-      }}).unwrap();
-      toast.success("Completion updated");
-      setEditingCompletion(null);
-    } catch { toast.error("Failed to update"); }
-  }
-
-  async function handleDeleteCompletion(id: string) {
-    if (!confirm("Delete this completion record?")) return;
-    try { await deleteCompletion(id).unwrap(); toast.success("Completion deleted"); }
-    catch { toast.error("Failed to delete"); }
   }
 
   return (
@@ -247,66 +190,6 @@ export function ContactDetailPage() {
                   </div>
                   <div className="grid gap-2">
                     {entries.map((entry, idx) => {
-                      if (entry.kind === "completion") {
-                        const c = entry.completion;
-                        const lines = (c.product_lines as unknown as JobProductRow[]) ?? [];
-                        const linesTotal = lines.reduce((sum, l) => sum + Number(l.quantity) * Number(l.unit_price), 0);
-                        const completedLabel = new Date(c.completed_at).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
-                        const serviceLabel = new Date(c.service_date + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-                        const sids = c.staff_ids ?? [];
-                        return (
-                          <Card key={`c-${c.id}`} className="p-3 border-emerald-500/30 bg-emerald-500/5">
-                            <div className="flex items-start justify-between gap-3 flex-wrap">
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-sm font-medium flex items-center gap-1">
-                                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                                    Job completed — {completedLabel}
-                                  </span>
-                                  <Badge variant="outline" className="bg-emerald-500/15 text-emerald-700 border-emerald-500/30">completed</Badge>
-                                </div>
-                                <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
-                                  <CalendarClock className="h-3 w-3" />
-                                  {c.service_type === "installation" ? "Install date:" : "Service date:"} <strong className="text-foreground">{serviceLabel}</strong>
-                                </div>
-                                <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1 flex-wrap">
-                                  <Users className="h-3 w-3" />
-                                  <span className="font-medium text-foreground">Done by:</span>
-                                  {sids.length === 0 ? <span>Unassigned</span> : sids.map((sid, i, arr) => (
-                                    <span key={sid}>{staffName(sid)}{i < arr.length - 1 ? "," : ""}</span>
-                                  ))}
-                                </div>
-                                <div className="text-xs text-muted-foreground mt-1">
-                                  Sale value: ${Number(c.service_value).toFixed(2)}
-                                  {lines.length > 0 && <> · Line items: ${linesTotal.toFixed(2)}</>}
-                                </div>
-                                {lines.length > 0 && (
-                                  <div className="mt-2 border-t pt-2">
-                                    <div className="text-xs font-medium mb-1 flex items-center gap-1"><Package className="h-3 w-3" /> Products sold</div>
-                                    <ul className="text-xs text-muted-foreground space-y-0.5">
-                                      {lines.map((l, i) => (
-                                        <li key={i} className="flex justify-between gap-3">
-                                          <span className="truncate">{productName(l.product_id)} × {Number(l.quantity)}</span>
-                                          <span>${(Number(l.quantity) * Number(l.unit_price)).toFixed(2)}</span>
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                )}
-                                {c.notes && (
-                                  <div className="text-xs text-muted-foreground mt-2 border-t pt-2">
-                                    <span className="font-medium text-foreground">Notes: </span>{c.notes}
-                                  </div>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-1 shrink-0">
-                                <Button variant="ghost" size="icon" onClick={() => openEditCompletion(c)}><Pencil className="h-4 w-4" /></Button>
-                                <Button variant="ghost" size="icon" onClick={() => handleDeleteCompletion(c.id)}><Trash2 className="h-4 w-4 text-red-600" /></Button>
-                              </div>
-                            </div>
-                          </Card>
-                        );
-                      }
                       const job = entry.job;
                       const lines = jobProducts[job.id] ?? [];
                       const linesTotal = lines.reduce((sum, l) => sum + Number(l.quantity) * Number(l.unit_price), 0);
@@ -387,7 +270,6 @@ export function ContactDetailPage() {
             <TabsContent value="purchases">
               <PurchasesAddresses
                 jobs={contact.jobs}
-                completions={contactCompletions}
                 purchaseHistory={purchaseHistory}
                 onDeleteAddress={handleDeleteAddress}
               />
@@ -407,30 +289,6 @@ export function ContactDetailPage() {
       {editingJob && (
         <JobFormDialog open={!!editingJob} onOpenChange={(v) => !v && setEditingJob(null)} job={editingJob} onSubmit={handleJobSubmit} />
       )}
-
-      <Dialog open={!!editingCompletion} onOpenChange={(v) => !v && setEditingCompletion(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Edit completed job</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label htmlFor="comp-date">Service date</Label>
-              <Input id="comp-date" type="date" value={completionForm.service_date} onChange={(e) => setCompletionForm({ ...completionForm, service_date: e.target.value })} />
-            </div>
-            <div>
-              <Label htmlFor="comp-value">Sale value</Label>
-              <Input id="comp-value" type="number" step="0.01" value={completionForm.service_value} onChange={(e) => setCompletionForm({ ...completionForm, service_value: e.target.value })} />
-            </div>
-            <div>
-              <Label htmlFor="comp-notes">Notes</Label>
-              <Textarea id="comp-notes" rows={3} value={completionForm.notes} onChange={(e) => setCompletionForm({ ...completionForm, notes: e.target.value })} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingCompletion(null)}>Cancel</Button>
-            <Button onClick={saveCompletion}>Save</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

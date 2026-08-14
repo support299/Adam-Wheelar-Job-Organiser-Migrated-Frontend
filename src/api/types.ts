@@ -53,28 +53,6 @@ export type JobProductLine = {
   unit_price: number;
 };
 
-export type JobCompletion = {
-  id: string;
-  job_id: string | null;
-  name: string;
-  email: string | null;
-  phone: string | null;
-  address: string;
-  lat: number;
-  lng: number;
-  service_date: string;
-  service_time: string | null;
-  completed_at: string;
-  service_value: number;
-  service_type: string | null;
-  sale_date: string | null;
-  notes: string | null;
-  staff_ids: string[];
-  product_lines: JobProductLine[];
-};
-
-export type JobCompletionInsert = Omit<JobCompletion, "id" | "completed_at">;
-
 export type Staff = {
   id: string;
   name: string;
@@ -218,7 +196,6 @@ export type PurchaseHistoryRow = {
   id: string;
   install_date: string;
   install_status: string;
-  source: "completion" | "job";
   address: string;
   product_id: string;
   product_name: string;

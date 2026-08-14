@@ -11,7 +11,7 @@ import {
   FREQUENCY_LABELS,
   type RecurrenceFrequency,
 } from "@/lib/jobs";
-import type { Job, JobCompletion, PurchaseHistoryRow } from "@/api/types";
+import type { Job, PurchaseHistoryRow } from "@/api/types";
 
 function dueTagBadgeClass(t: DueTag) {
   switch (t) {
@@ -25,26 +25,21 @@ function dueTagBadgeClass(t: DueTag) {
 
 type Props = {
   jobs: Job[];
-  completions: JobCompletion[];
   purchaseHistory: PurchaseHistoryRow[];
   onDeleteAddress: (address: string) => void;
 };
 
-export function PurchasesAddresses({ jobs, completions, purchaseHistory, onDeleteAddress }: Props) {
+export function PurchasesAddresses({ jobs, purchaseHistory, onDeleteAddress }: Props) {
   const allAddresses = useMemo(() => {
     const map = new Map<string, number>();
     for (const j of jobs) {
       const a = j.address.trim();
       if (a) map.set(a, (map.get(a) ?? 0) + 1);
     }
-    for (const c of completions) {
-      const a = c.address.trim();
-      if (a) map.set(a, (map.get(a) ?? 0) + 1);
-    }
     return Array.from(map.entries())
       .map(([address, count]) => ({ address, count }))
       .sort((a, b) => b.count - a.count);
-  }, [jobs, completions]);
+  }, [jobs]);
 
   const purchaseTotal = purchaseHistory.reduce((s, r) => s + Number(r.total), 0);
 
@@ -107,7 +102,7 @@ export function PurchasesAddresses({ jobs, completions, purchaseHistory, onDelet
                 <tbody>
                   {purchaseHistory.map((r) => {
                     const dateLabel = new Date(
-                      r.source === "completion" ? r.install_date : r.install_date + "T00:00:00",
+                      r.install_date + "T00:00:00",
                     ).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 
                     const nextDateLabel = r.next_service_date
@@ -118,13 +113,13 @@ export function PurchasesAddresses({ jobs, completions, purchaseHistory, onDelet
                     const s = r.install_status;
 
                     // Pending/scheduled/rescheduled install → show install due tag
-                    const showInstallTag = r.source === "job" && (s === "pending" || s === "scheduled" || s === "rescheduled");
+                    const showInstallTag = s === "pending" || s === "scheduled" || s === "rescheduled";
                     const installTag: DueTag | null = showInstallTag
                       ? getDueTag({ service_date: r.install_date, status: s })
                       : null;
 
                     // Next service tag — shown when install is done or skipped
-                    const showServiceTag = s === "completed" || s === "skip" || r.source === "completion";
+                    const showServiceTag = s === "completed" || s === "skip";
                     const dueTag: DueTag | null = showServiceTag && r.next_service_date && r.next_service_status
                       ? getDueTag({ service_date: r.next_service_date, status: r.next_service_status })
                       : null;
