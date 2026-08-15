@@ -17,18 +17,20 @@ import {
 } from "@/components/ui/dialog";
 import {
   MapPin, Trash2, Users, CalendarClock, Phone, Navigation, Mail,
-  Package, ChevronDown, ChevronRight, Pencil, ArrowUp, ArrowDown, X, LogOut, Home,
+  Package, ChevronDown, ChevronRight, Pencil, ArrowUp, ArrowDown, X, LogOut, Home, Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import { JobFormDialog } from "@/components/jobs/JobFormDialog";
 import { JOB_PROGRESS_LABELS, JOB_PROGRESS_REQUIRES_NOTES, type JobProgressStatus } from "@/lib/jobProgress";
 import { todayIso } from "@/lib/week";
+import type { RootState } from "@/store/store";
 import type { Job, JobInsert, SavedPlan, BaseLocation, Staff, JobProgress, JobProductLine, SavedPlanUpdate } from "@/api/types";
 import { useListPlansQuery, useDeletePlanMutation, useUpdatePlanMutation, useUpsertJobProgressMutation } from "@/api/plansApi";
 import { useListStaffQuery } from "@/api/staffApi";
 import { useUpdateJobMutation, useSetJobProductsMutation, useSetJobStaffMutation, useListAllJobProductsQuery } from "@/api/jobsApi";
 import { useListProductsQuery } from "@/api/productsApi";
 import { useListBaseLocationsQuery } from "@/api/locationsApi";
+import { BASE_URL } from "@/api/baseApi";
 
 function mapsUrl(j: Job): string {
   if (Number.isFinite(j.lat) && Number.isFinite(j.lng)) {
@@ -43,6 +45,7 @@ export function PlansPage() {
   const navigate = useNavigate();
   const isAdmin = useSelector(selectIsAdmin);
   const currentStaffId = useSelector(selectStaffId);
+  const accessToken = useSelector((s: RootState) => s.auth.accessToken);
 
   function handleLogout() {
     dispatch(clearCredentials());
@@ -95,6 +98,45 @@ export function PlansPage() {
       await deletePlan(id).unwrap();
       toast.success("Plan deleted");
     } catch { toast.error("Failed to delete"); }
+  }
+
+  async function downloadCsv(url: string, filename: string) {
+    try {
+      const res = await fetch(url, {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+      });
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      toast.error("Failed to export CSV");
+    }
+  }
+
+  function handleExportCsv(planId: string, planName: string) {
+    void downloadCsv(`${BASE_URL}/plans/${planId}/export-csv/`, `${planName.replace(/[^a-z0-9]+/gi, "_")}.csv`);
+  }
+
+  function handleExportAllCsv() {
+    const params = new URLSearchParams();
+    if (dateFrom) params.set("date_from", dateFrom);
+    if (dateTo) params.set("date_to", dateTo);
+    if (staffFilter !== "all") params.set("staff_id", staffFilter);
+    const dateRange = dateFrom && dateTo
+      ? `_${dateFrom}_to_${dateTo}`
+      : dateFrom
+      ? `_from_${dateFrom}`
+      : dateTo
+      ? `_to_${dateTo}`
+      : "";
+    void downloadCsv(`${BASE_URL}/plans/export-csv/?${params.toString()}`, `saved_plans${dateRange}.csv`);
   }
 
   return (
@@ -150,6 +192,12 @@ export function PlansPage() {
           </div>
         </Card>
 
+        <div className="flex justify-end">
+          <Button variant="outline" size="sm" className="cursor-pointer" onClick={handleExportAllCsv}>
+            <Download className="h-4 w-4 mr-1" />Export All (CSV)
+          </Button>
+        </div>
+
         {isLoading ? (
           <div className="text-sm text-muted-foreground py-12 text-center">Loading…</div>
         ) : plans.length === 0 ? (
@@ -187,6 +235,9 @@ export function PlansPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-0.5 shrink-0">
+                      <Button variant="ghost" size="icon" className="cursor-pointer" title="Download CSV" onClick={() => handleExportCsv(p.id, p.name)}>
+                        <Download className="h-4 w-4" />
+                      </Button>
                       <Button variant="ghost" size="icon" className="cursor-pointer" onClick={() => setEditingPlan(p)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
