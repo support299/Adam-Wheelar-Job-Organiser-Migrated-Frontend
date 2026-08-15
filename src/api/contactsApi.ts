@@ -3,8 +3,11 @@ import type { GhlContact, GhlUser, ContactNote } from "./types";
 
 export const contactsApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
-    listGhlContacts: build.query<GhlContact[], void>({
-      query: () => "/contacts/ghl/",
+    listGhlContacts: build.query<GhlContact[], string | void>({
+      // Optional server-side search (backend: DRF SearchFilter over
+      // name/email/phone). Callers that omit it keep fetching the full,
+      // unbounded list unchanged.
+      query: (search) => (search ? `/contacts/ghl/?search=${encodeURIComponent(search)}` : "/contacts/ghl/"),
       providesTags: (result) =>
         result
           ? [...result.map(({ id }) => ({ type: "Contact" as const, id })), { type: "Contact", id: "LIST" }]

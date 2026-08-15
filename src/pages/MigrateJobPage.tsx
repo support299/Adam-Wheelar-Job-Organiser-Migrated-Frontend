@@ -6,8 +6,8 @@ import { ArrowLeft, CheckCircle2 } from "lucide-react";
 import { useListStaffQuery } from "@/api/staffApi";
 import { useListProductsQuery } from "@/api/productsApi";
 import { useCreateJobMutation } from "@/api/jobsApi";
-import { useJobForm } from "@/components/jobs/useJobForm";
-import { JobFormFields } from "@/components/jobs/JobFormFields";
+import { useMigrateJobForm } from "@/components/migrate-job/useMigrateJobForm";
+import { MigrateJobFormFields } from "@/components/migrate-job/MigrateJobFormFields";
 import { parseMigrationPrefill, type ParsedMigrationPrefill } from "@/lib/jobPrefill";
 import type { Job, JobInsert, JobProductLine } from "@/api/types";
 
@@ -39,18 +39,23 @@ export function MigrateJobPage() {
       product_lines: extras.lineItems,
     }).unwrap();
     setSaved(created);
+    // Signal success to whatever page has this embedded in an iframe (e.g.
+    // a batch-migration runner stepping through one URL per CSV row).
+    if (window.parent !== window) {
+      window.parent.postMessage({ type: "migrate-job:created", job: created }, "*");
+    }
   }
 
   // Migrated CSV rows default to a one-time job, unlike the normal "Enter New
   // Job" modal (which defaults to recurring). A `is_recurring` URL param, if
   // present, still overrides this. Memoized so the object reference stays
-  // stable across renders — useJobForm's effect depends on it by reference.
+  // stable across renders — useMigrateJobForm's effect depends on it by reference.
   const initialValues = useMemo(
     () => (parsed ? { is_recurring: false, ...parsed.values } : undefined),
     [parsed],
   );
 
-  const jobForm = useJobForm({
+  const jobForm = useMigrateJobForm({
     open: true,
     job: null,
     initialValues,
@@ -60,6 +65,20 @@ export function MigrateJobPage() {
     migrationMode: true,
     onSubmit: handleSubmit,
   });
+
+  // Option+S (⌥S) instead of the browser's own Cmd+S "Save Page" shortcut.
+  // Matched by e.code (physical key) rather than e.key, since Option+S types
+  // "ß" on a US Mac layout — e.key would report that instead of "s".
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (!e.altKey || e.metaKey || e.ctrlKey || e.code !== "KeyS") return;
+      if (saved || !parsed || jobForm.saving) return;
+      e.preventDefault();
+      jobForm.handleSave();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [saved, parsed, jobForm.saving, jobForm.handleSave]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -120,10 +139,9 @@ export function MigrateJobPage() {
                 <CardTitle className="text-base">Enter New Job</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <JobFormFields
+                <MigrateJobFormFields
                   {...jobForm}
                   job={null}
-                  initialContactSearchTerm={parsed.contactSearchTerm}
                   showCompletedAtField
                   migrationMode
                 />

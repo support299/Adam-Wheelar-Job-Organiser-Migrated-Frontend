@@ -1,17 +1,28 @@
 import type { Staff, Product, JobInsert, JobProductLine } from "@/api/types";
 
-/** Parses "YYYYMMDDHHMMSS" (14 digits). Returns null on malformed input. */
+/**
+ * Parses "YYYYMMDDHHMMSS" (14 digits) or a date-only "YYYYMMDD" (8 digits).
+ * For the date-only form, `time` is null so callers can leave the form's own
+ * default time in place rather than overwriting it with a fake midnight.
+ * Returns null on malformed input.
+ */
 export function parseCompactDateTime(
   raw: string | null,
-): { date: string; time: string; iso: string } | null {
-  if (!raw || !/^\d{14}$/.test(raw)) return null;
+): { date: string; time: string | null; iso: string } | null {
+  if (!raw) return null;
+  const isDateOnly = /^\d{8}$/.test(raw);
+  const isFull = /^\d{14}$/.test(raw);
+  if (!isDateOnly && !isFull) return null;
   const y = raw.slice(0, 4);
   const mo = raw.slice(4, 6);
   const d = raw.slice(6, 8);
+  if (Number(mo) < 1 || Number(mo) > 12 || Number(d) < 1 || Number(d) > 31) return null;
+  if (isDateOnly) {
+    return { date: `${y}-${mo}-${d}`, time: null, iso: `${y}-${mo}-${d}T00:00:00Z` };
+  }
   const h = raw.slice(8, 10);
   const mi = raw.slice(10, 12);
   const s = raw.slice(12, 14);
-  if (Number(mo) < 1 || Number(mo) > 12 || Number(d) < 1 || Number(d) > 31) return null;
   if (Number(h) > 23 || Number(mi) > 59 || Number(s) > 59) return null;
   return { date: `${y}-${mo}-${d}`, time: `${h}:${mi}`, iso: `${y}-${mo}-${d}T${h}:${mi}:${s}Z` };
 }
@@ -52,7 +63,8 @@ export function parseMigrationPrefill(
   const serviceDatetime = parseCompactDateTime(serviceDatetimeRaw);
   if (serviceDatetime) {
     values.service_date = serviceDatetime.date;
-    values.service_time = serviceDatetime.time;
+    const serviceTime = serviceDatetime.time;
+    if (serviceTime) values.service_time = serviceTime;
   } else if (serviceDatetimeRaw) {
     warnings.push(`Invalid service_datetime: "${serviceDatetimeRaw}"`);
   }
