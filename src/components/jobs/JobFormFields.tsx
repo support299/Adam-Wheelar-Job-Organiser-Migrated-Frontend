@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -311,24 +312,26 @@ export function JobFormFields({
         </div>
 
         {/* Dates */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
-          <div className="grid gap-1.5">
-            <Label>Service/Installation Date</Label>
+        <div className="flex flex-col sm:flex-row gap-3" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
+          <div className="grid gap-1.5 flex-1 min-w-0">
+            <Label>{form.service_type === "installation" ? "Installation Date" : "Service Date"}</Label>
             <Input
               type="date"
+              className="w-full"
               value={form.service_date}
               onChange={(e) => setForm({ ...form, service_date: e.target.value })}
             />
           </div>
-          <div className="grid gap-1.5">
+          <div className="grid gap-1.5 flex-1 min-w-0">
             <Label>Time</Label>
             <Input
               type="time"
+              className="w-full"
               value={form.service_time as string}
               onChange={(e) => setForm({ ...form, service_time: e.target.value })}
             />
           </div>
-          <div className="grid gap-1.5">
+          <div className="grid gap-1.5 flex-1 min-w-0">
             <Label>Duration (mins)</Label>
             <Select
               value={String(form.duration ?? 60)}
@@ -348,8 +351,22 @@ export function JobFormFields({
         </div>
 
         {/* Service value */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
-          <div className="grid gap-1.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
+          <div className="flex items-center gap-2 h-9">
+            <Checkbox
+              id="payment-status-unpaid"
+              checked={form.payment_status === "unpaid"}
+              onCheckedChange={(checked) =>
+                setForm({
+                  ...form,
+                  payment_status: checked ? "unpaid" : "paid",
+                  service_value: checked ? 0 : form.service_value,
+                })
+              }
+            />
+            <Label htmlFor="payment-status-unpaid" className="font-normal cursor-pointer">Unpaid</Label>
+          </div>
+          <div className={`grid gap-1.5 ${form.payment_status === "unpaid" ? "invisible" : ""}`}>
             <Label>Amount ($)</Label>
             <Input
               type="number"
@@ -472,7 +489,9 @@ export function JobFormFields({
                 value={form.service_date}
                 onChange={(e) => setForm({ ...form, service_date: e.target.value })}
               />
-              <p className="text-xs text-muted-foreground">This updates the Service/Installation Date.</p>
+              <p className="text-xs text-muted-foreground">
+                This updates the {form.service_type === "installation" ? "Installation Date" : "Service Date"}.
+              </p>
             </div>
           )}
         </div>

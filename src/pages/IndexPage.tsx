@@ -415,6 +415,11 @@ function JobHoverContent({ j, staffNameMap }: { j: Job; staffNameMap: Record<str
       <div className="flex items-center gap-1.5">
         <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: statusColor(j.status) }} />
         <span className="capitalize text-muted-foreground">{j.status}</span>
+        <span
+          className={`font-medium ${j.payment_status === "unpaid" ? "text-red-500" : "text-emerald-600"}`}
+        >
+          {j.payment_status === "unpaid" ? "Unpaid" : "Paid"}
+        </span>
         <span className="ml-auto font-medium">${Number(j.service_value).toFixed(2)}</span>
       </div>
       {assignedNames.length > 0 && (
@@ -1846,6 +1851,14 @@ export function IndexPage() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-medium truncate">{job.name}</span>
                             <Badge variant="outline" className={statusBadgeClass(job.status)}>{job.status}</Badge>
+                            <Badge
+                              variant="outline"
+                              className={job.payment_status === "unpaid"
+                                ? "bg-red-500/15 text-red-700 border-red-500/30"
+                                : "bg-emerald-500/15 text-emerald-700 border-emerald-500/30"}
+                            >
+                              {job.payment_status === "unpaid" ? "Unpaid" : "Paid"}
+                            </Badge>
                             {job.is_recurring && job.frequency && (
                               <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">
                                 {FREQUENCY_LABELS[job.frequency as RecurrenceFrequency]}

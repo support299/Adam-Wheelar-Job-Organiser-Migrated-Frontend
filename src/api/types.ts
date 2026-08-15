@@ -18,6 +18,7 @@ export type Job = {
   frequency: string | null;
   service_type: string;
   sale_date: string | null;
+  payment_status: string | null;
   call_status: string | null;
   calls_made: number;
   completed_at: string | null;
