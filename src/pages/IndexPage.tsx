@@ -40,20 +40,17 @@ import {
   useListJobsQuery,
   useListJobsPagedQuery,
   useCreateJobMutation,
-  useUpdateJobMutation,
   useDeleteJobMutation,
-  useSetJobStaffMutation,
-  useSetJobProductsMutation,
 } from "@/api/jobsApi";
 import { useListStaffQuery } from "@/api/staffApi";
 import { useListBaseLocationsQuery } from "@/api/locationsApi";
 import { useGetDistanceMatrixMutation } from "@/api/mapsApi";
 import { useCreatePlanMutation, useListPlansQuery } from "@/api/plansApi";
 import { JobFormDialog } from "@/components/jobs/JobFormDialog";
+import { ContactProfileModal } from "@/components/contacts/profile/ContactProfileModal";
 import { JobMap } from "@/components/jobs/JobMap";
 import { optimizeOrder, routeStatsForOrder } from "@/lib/directions";
 import {
-  addFrequency,
   FREQUENCY_LABELS,
   type RecurrenceFrequency,
   getDueTag,
@@ -1614,10 +1611,7 @@ export function IndexPage() {
   const [activeMainTab, setActiveMainTab] = useState("jobs");
   const { data: staff = [] } = useListStaffQuery();
   const [createJob] = useCreateJobMutation();
-  const [updateJob] = useUpdateJobMutation();
   const [deleteJob] = useDeleteJobMutation();
-  const [setJobStaff] = useSetJobStaffMutation();
-  const [setJobProducts] = useSetJobProductsMutation();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Job | null>(null);
@@ -1637,7 +1631,6 @@ export function IndexPage() {
   }, [search]);
   const [mapStatusFilter, setMapStatusFilter] = useState("pending");
   const [focusedJobId, setFocusedJobId] = useState<string | null>(null);
-  const [editingInitialTab, setEditingInitialTab] = useState<"details" | "activity">("details");
   // Default the map to the current month (1st → last day) so it doesn't try to
   // plot every job at once.
   const [mapDateFrom, setMapDateFrom] = useState(() =>
@@ -1725,30 +1718,9 @@ export function IndexPage() {
   }, [pageResults]);
 
   async function handleSubmit(data: JobInsert, extras: { staffIds: string[]; lineItems: JobProductLine[] }) {
-    const isDone = (s: string) => s === "completed" || s === "skip";
-    let rolledToDate: string | null = null;
-    if (editing) {
-      const wasCompleted = isDone(editing.status);
-      const nowCompleted = isDone(data.status);
-      // Backend auto-spawns the next occurrence (new Job row) when a recurring
-      // job transitions into completed/skip — see _spawn_next_occurrence.
-      if (!wasCompleted && nowCompleted && data.is_recurring && data.frequency) {
-        rolledToDate = addFrequency(data.service_date, data.frequency as RecurrenceFrequency);
-      }
-      await updateJob({ id: editing.id, body: data }).unwrap();
-      await setJobStaff({ jobId: editing.id, staffIds: extras.staffIds }).unwrap();
-      await setJobProducts({ jobId: editing.id, lines: extras.lineItems }).unwrap();
-    } else {
-      await createJob({ ...data, staff_ids: extras.staffIds, product_lines: extras.lineItems }).unwrap();
-    }
-    if (rolledToDate) {
-      toast.success(`Job completed — next visit scheduled ${rolledToDate}`);
-    } else {
-      toast.success(editing ? "Job updated" : "Job created");
-    }
-    if (!editing) {
-      setPage(1);
-    }
+    await createJob({ ...data, staff_ids: extras.staffIds, product_lines: extras.lineItems }).unwrap();
+    toast.success("Job created");
+    setPage(1);
     void refetchJobsPage();
     setEditing(null);
     setDialogOpen(false);
@@ -2004,8 +1976,8 @@ export function IndexPage() {
               jobStaffMap={jobStaffMap}
               focusedJobId={focusedJobId}
               setFocusedJobId={setFocusedJobId}
-              onEditJob={(j) => { setEditing(j); setEditingInitialTab("details"); setDialogOpen(true); }}
-              onEditJobActivity={(j) => { setEditing(j); setEditingInitialTab("activity"); setDialogOpen(true); }}
+              onEditJob={(j) => { setEditing(j); setDialogOpen(true); }}
+              onEditJobActivity={(j) => { setEditing(j); setDialogOpen(true); }}
             />
           </TabsContent>
 
@@ -2017,12 +1989,17 @@ export function IndexPage() {
       </main>
 
       <JobFormDialog
-        open={dialogOpen}
+        open={dialogOpen && !editing}
+        onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditing(null); }}
+        job={null}
+        defaultServiceType="servicing"
+        onSubmit={handleSubmit}
+      />
+      <ContactProfileModal
+        open={dialogOpen && !!editing}
         onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditing(null); }}
         job={editing}
-        defaultServiceType="servicing"
-        initialTab={editingInitialTab}
-        onSubmit={handleSubmit}
+        onSaved={() => void refetchJobsPage()}
       />
     </div>
   );

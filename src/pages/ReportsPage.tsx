@@ -23,11 +23,9 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { currentWeekRange } from "@/lib/week";
-import { JobFormDialog } from "@/components/jobs/JobFormDialog";
-import type { JobInsert } from "@/api/types";
-import type { JobProductLine } from "@/api/types";
+import { ContactProfileModal } from "@/components/contacts/profile/ContactProfileModal";
 import { useListStaffQuery } from "@/api/staffApi";
-import { useGetJobQuery, useUpdateJobMutation, useSetJobProductsMutation, useSetJobStaffMutation } from "@/api/jobsApi";
+import { useGetJobQuery } from "@/api/jobsApi";
 import { useGetStaffReportQuery, useGetStaffReportSummaryQuery } from "@/api/dashboardApi";
 import { useListStaffPayoutsQuery, useCreateStaffPayoutMutation, useDeleteStaffPayoutMutation } from "@/api/staffPayoutsApi";
 
@@ -47,9 +45,6 @@ export function ReportsPage() {
   const { data: payouts = [] } = useListStaffPayoutsQuery();
   const [createPayout] = useCreateStaffPayoutMutation();
   const [deletePayout] = useDeleteStaffPayoutMutation();
-  const [updateJob] = useUpdateJobMutation();
-  const [setJobProducts] = useSetJobProductsMutation();
-  const [setJobStaff] = useSetJobStaffMutation();
 
   const [selectedStaff, setSelectedStaff] = useState(() => {
     return "";
@@ -483,20 +478,10 @@ export function ReportsPage() {
         </DialogContent>
       </Dialog>
 
-      <JobFormDialog
+      <ContactProfileModal
         open={!!editingJobId}
         onOpenChange={(v) => { if (!v) setEditingJobId(null); }}
         job={editingJobData ?? null}
-        onSubmit={async (data: JobInsert, extras: { staffIds: string[]; lineItems: JobProductLine[] }) => {
-          if (!editingJobId) return;
-          try {
-            await updateJob({ id: editingJobId, body: data }).unwrap();
-            await setJobStaff({ jobId: editingJobId, staffIds: extras.staffIds }).unwrap();
-            await setJobProducts({ jobId: editingJobId, lines: extras.lineItems }).unwrap();
-            toast.success("Job updated");
-            setEditingJobId(null);
-          } catch { toast.error("Failed to update job"); }
-        }}
       />
     </div>
   );

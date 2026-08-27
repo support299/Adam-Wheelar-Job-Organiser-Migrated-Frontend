@@ -20,14 +20,14 @@ import {
   Package, ChevronDown, ChevronRight, Pencil, ArrowUp, ArrowDown, X, LogOut, Home, Download,
 } from "lucide-react";
 import { toast } from "sonner";
-import { JobFormDialog } from "@/components/jobs/JobFormDialog";
+import { ContactProfileModal } from "@/components/contacts/profile/ContactProfileModal";
 import { JOB_PROGRESS_LABELS, JOB_PROGRESS_REQUIRES_NOTES, type JobProgressStatus } from "@/lib/jobProgress";
 import { todayIso } from "@/lib/week";
 import type { RootState } from "@/store/store";
-import type { Job, JobInsert, SavedPlan, BaseLocation, Staff, JobProgress, JobProductLine, SavedPlanUpdate } from "@/api/types";
+import type { Job, SavedPlan, BaseLocation, Staff, JobProgress, SavedPlanUpdate } from "@/api/types";
 import { useListPlansQuery, useDeletePlanMutation, useUpdatePlanMutation, useUpsertJobProgressMutation } from "@/api/plansApi";
 import { useListStaffQuery } from "@/api/staffApi";
-import { useUpdateJobMutation, useSetJobProductsMutation, useSetJobStaffMutation, useListAllJobProductsQuery } from "@/api/jobsApi";
+import { useListAllJobProductsQuery } from "@/api/jobsApi";
 import { useListProductsQuery } from "@/api/productsApi";
 import { useListBaseLocationsQuery } from "@/api/locationsApi";
 import { BASE_URL } from "@/api/baseApi";
@@ -73,9 +73,6 @@ export function PlansPage() {
   const { data: allJobProducts = [] } = useListAllJobProductsQuery();
   const { data: bases = [] } = useListBaseLocationsQuery();
   const [deletePlan] = useDeletePlanMutation();
-  const [updateJob] = useUpdateJobMutation();
-  const [setJobProducts] = useSetJobProductsMutation();
-  const [setJobStaff] = useSetJobStaffMutation();
 
   const jobProductsMap = useMemo(() => {
     const m: Record<string, Array<{ product_id: string; quantity: number; unit_price: number }>> = {};
@@ -276,20 +273,10 @@ export function PlansPage() {
         bases={bases}
       />
 
-      <JobFormDialog
+      <ContactProfileModal
         open={!!editingJob}
         onOpenChange={(v) => { if (!v) setEditingJob(null); }}
         job={editingJob}
-        onSubmit={async (data: JobInsert, extras: { staffIds: string[]; lineItems: JobProductLine[] }) => {
-          if (!editingJob) return;
-          try {
-            await updateJob({ id: editingJob.id, body: data }).unwrap();
-            await setJobStaff({ jobId: editingJob.id, staffIds: extras.staffIds }).unwrap();
-            await setJobProducts({ jobId: editingJob.id, lines: extras.lineItems }).unwrap();
-            toast.success("Job updated");
-            setEditingJob(null);
-          } catch { toast.error("Failed to update job"); }
-        }}
       />
     </div>
   );

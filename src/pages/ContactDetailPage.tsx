@@ -6,13 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, MapPin, Mail, Phone, Package, CalendarClock, Calendar as CalendarIcon, Users, CheckCircle2, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { JobFormDialog } from "@/components/jobs/JobFormDialog";
+import { ContactProfileModal } from "@/components/contacts/profile/ContactProfileModal";
 import { PurchasesAddresses } from "@/components/contacts/PurchasesAddresses";
 import { ContactActivity } from "@/components/contacts/ContactActivity";
 import { groupJobsByContact } from "./ContactsListPage";
 import { daysUntil, getDueTag, getDueTagLabel, type DueTag, FREQUENCY_LABELS, type RecurrenceFrequency } from "@/lib/jobs";
-import type { Job, JobInsert, JobProductLine } from "@/api/types";
-import { useListJobsQuery, useUpdateJobMutation, useDeleteJobMutation, useSetJobProductsMutation, useSetJobStaffMutation, useListAllJobProductsQuery, useLazyListPurchaseHistoryQuery } from "@/api/jobsApi";
+import type { Job } from "@/api/types";
+import { useListJobsQuery, useDeleteJobMutation, useListAllJobProductsQuery, useLazyListPurchaseHistoryQuery } from "@/api/jobsApi";
 import { useListProductsQuery } from "@/api/productsApi";
 import { useListStaffQuery, useListJobStaffQuery } from "@/api/staffApi";
 
@@ -77,10 +77,7 @@ export function ContactDetailPage() {
   }, [jobFilter, contact]);
 
   const [fetchPurchaseHistory, { data: purchaseHistory = [] }] = useLazyListPurchaseHistoryQuery();
-  const [updateJob] = useUpdateJobMutation();
   const [deleteJob] = useDeleteJobMutation();
-  const [setJobProducts] = useSetJobProductsMutation();
-  const [setJobStaff] = useSetJobStaffMutation();
 
   const [editingJob, setEditingJob] = useState<Job | null>(null);
 
@@ -123,17 +120,6 @@ export function ContactDetailPage() {
       await Promise.all(jobsToDelete.map((j) => deleteJob(j.id).unwrap()));
       toast.success("Address removed");
     } catch { toast.error("Failed to delete address"); }
-  }
-
-  async function handleJobSubmit(data: JobInsert, extras: { staffIds: string[]; lineItems: JobProductLine[] }) {
-    if (!editingJob) return;
-    try {
-      await updateJob({ id: editingJob.id, body: data }).unwrap();
-      await setJobStaff({ jobId: editingJob.id, staffIds: extras.staffIds }).unwrap();
-      await setJobProducts({ jobId: editingJob.id, lines: extras.lineItems }).unwrap();
-      toast.success("Job updated");
-      setEditingJob(null);
-    } catch { toast.error("Failed to update job"); }
   }
 
   async function handleDeleteJob(id: string) {
@@ -286,9 +272,11 @@ export function ContactDetailPage() {
         )}
       </main>
 
-      {editingJob && (
-        <JobFormDialog open={!!editingJob} onOpenChange={(v) => !v && setEditingJob(null)} job={editingJob} onSubmit={handleJobSubmit} />
-      )}
+      <ContactProfileModal
+        open={!!editingJob}
+        onOpenChange={(v) => !v && setEditingJob(null)}
+        job={editingJob}
+      />
     </div>
   );
 }

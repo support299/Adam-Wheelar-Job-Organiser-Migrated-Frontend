@@ -152,3 +152,12 @@
 .pac-container {
   z-index: 10000 !important;
 }
+
+/* Scrollable but with no visible scrollbar. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}

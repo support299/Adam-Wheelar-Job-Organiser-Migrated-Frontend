@@ -12,11 +12,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Mail, Phone, MapPin, Plus, CalendarClock, Users, Package, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { JobFormDialog } from "@/components/jobs/JobFormDialog";
+import { ContactProfileModal } from "@/components/contacts/profile/ContactProfileModal";
 import { PurchasesAddresses } from "@/components/contacts/PurchasesAddresses";
 import { ContactActivity } from "@/components/contacts/ContactActivity";
 import { daysUntil, getDueTag, getDueTagLabel, DUE_TAG_LABELS, type DueTag, FREQUENCY_LABELS, type RecurrenceFrequency } from "@/lib/jobs";
 import type { Job, JobInsert, JobProductLine } from "@/api/types";
-import { useListJobsQuery, useCreateJobMutation, useUpdateJobMutation, useDeleteJobMutation, useSetJobProductsMutation, useSetJobStaffMutation, useListAllJobProductsQuery, useLazyListPurchaseHistoryQuery } from "@/api/jobsApi";
+import { useListJobsQuery, useCreateJobMutation, useDeleteJobMutation, useListAllJobProductsQuery, useLazyListPurchaseHistoryQuery } from "@/api/jobsApi";
 import { useListProductsQuery } from "@/api/productsApi";
 import { useListStaffQuery, useListJobStaffQuery } from "@/api/staffApi";
 import { useListGhlContactsQuery } from "@/api/contactsApi";
@@ -53,10 +54,7 @@ export function ContactJobsPage() {
   const { data: allJobProducts = [] } = useListAllJobProductsQuery(ghlContactId ? { ghl_contact_id: ghlContactId } : undefined);
   const [fetchPurchaseHistory, { data: purchaseHistory = [] }] = useLazyListPurchaseHistoryQuery();
   const [createJob] = useCreateJobMutation();
-  const [updateJob] = useUpdateJobMutation();
   const [deleteJob] = useDeleteJobMutation();
-  const [setJobProducts] = useSetJobProductsMutation();
-  const [setJobStaff] = useSetJobStaffMutation();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Job | null>(null);
@@ -112,14 +110,8 @@ export function ContactJobsPage() {
   const sortedJobs = useMemo(() => [...filteredJobs].sort((a, b) => b.service_date.localeCompare(a.service_date)), [filteredJobs]);
 
   async function handleSubmit(data: JobInsert, extras: { staffIds: string[]; lineItems: JobProductLine[] }) {
-    if (editing) {
-      await updateJob({ id: editing.id, body: data }).unwrap();
-      await setJobStaff({ jobId: editing.id, staffIds: extras.staffIds }).unwrap();
-      await setJobProducts({ jobId: editing.id, lines: extras.lineItems }).unwrap();
-    } else {
-      await createJob({ ...data, ghl_contact_id: ghlContactId ?? null, staff_ids: extras.staffIds, product_lines: extras.lineItems }).unwrap();
-    }
-    toast.success(editing ? "Job updated" : "Sale recorded");
+    await createJob({ ...data, ghl_contact_id: ghlContactId ?? null, staff_ids: extras.staffIds, product_lines: extras.lineItems }).unwrap();
+    toast.success("Sale recorded");
   }
 
   async function handleDelete(id: string) {
@@ -319,11 +311,16 @@ export function ContactJobsPage() {
       </main>
 
       <JobFormDialog
-        open={dialogOpen}
+        open={dialogOpen && !editing}
         onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditing(null); }}
-        job={editing}
+        job={null}
         defaultGhlContactId={ghlContactId}
         onSubmit={handleSubmit}
+      />
+      <ContactProfileModal
+        open={dialogOpen && !!editing}
+        onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditing(null); }}
+        job={editing}
       />
     </div>
   );

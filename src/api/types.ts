@@ -14,6 +14,8 @@ export type Job = {
   service_value: number;
   status: string;
   notes: string | null;
+  /** FK id into the Activity catalogue; null when unset. */
+  activity: number | null;
   is_recurring: boolean;
   frequency: string | null;
   service_type: string;
@@ -33,10 +35,11 @@ export type Job = {
   updated_at: string;
 };
 
-export type JobInsert = Omit<Job, "id" | "created_at" | "updated_at" | "staff_ids" | "last_call_at"> & {
+export type JobInsert = Omit<Job, "id" | "created_at" | "updated_at" | "staff_ids" | "last_call_at" | "activity"> & {
   occurrences?: number;
   staff_ids?: string[];
   product_lines?: JobProductLine[];
+  activity?: number | null;
 };
 export type JobUpdate = Partial<JobInsert>;
 
