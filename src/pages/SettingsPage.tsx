@@ -13,7 +13,7 @@ import {
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Users, Package, ArrowLeft, MapPin, Eye, EyeOff } from "lucide-react";
+import { Plus, Pencil, Trash2, Users, Package, ArrowLeft, MapPin, Eye, EyeOff, Activity as ActivityIcon } from "lucide-react";
 import { toast } from "sonner";
 import { AddressAutocomplete } from "@/components/jobs/AddressAutocomplete";
 import type { Staff, StaffInsert, StaffUpdate, Product, ProductInsert, ProductUpdate, BaseLocation, BaseLocationInsert, BaseLocationUpdate } from "@/api/types";
@@ -26,6 +26,12 @@ import {
 import {
   useListBaseLocationsQuery, useCreateBaseLocationMutation, useUpdateBaseLocationMutation, useDeleteBaseLocationMutation,
 } from "@/api/locationsApi";
+import {
+  useListActivitiesQuery, useCreateActivityMutation, useUpdateActivityMutation, useDeleteActivityMutation,
+} from "@/api/activitiesApi";
+import type { Activity } from "@/api/types";
+
+const ACTIVITY_BODY_MAX = 30;
 
 export function SettingsPage() {
   return (
@@ -37,7 +43,7 @@ export function SettingsPage() {
           </Button>
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
-            <p className="text-xs text-muted-foreground">Manage staff and products</p>
+            <p className="text-xs text-muted-foreground">Manage staff, products and activity</p>
           </div>
         </div>
       </header>
@@ -47,10 +53,12 @@ export function SettingsPage() {
             <TabsTrigger value="staff"><Users className="h-4 w-4 mr-2" /> Staff</TabsTrigger>
             <TabsTrigger value="products"><Package className="h-4 w-4 mr-2" /> Products</TabsTrigger>
             <TabsTrigger value="bases"><MapPin className="h-4 w-4 mr-2" /> Base Locations</TabsTrigger>
+            <TabsTrigger value="activity"><ActivityIcon className="h-4 w-4 mr-2" /> Activity</TabsTrigger>
           </TabsList>
           <TabsContent value="staff"><StaffPanel /></TabsContent>
           <TabsContent value="products"><ProductsPanel /></TabsContent>
           <TabsContent value="bases"><BaseLocationsPanel /></TabsContent>
+          <TabsContent value="activity"><ActivitiesPanel /></TabsContent>
         </Tabs>
       </main>
     </div>
@@ -371,6 +379,107 @@ function ProductDialog({ open, onOpenChange, product }: { open: boolean; onOpenC
               </SelectContent>
             </Select>
           </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ---- Activity ---- */
+function ActivitiesPanel() {
+  const { data: items = [], isLoading } = useListActivitiesQuery();
+  const [deleteActivity] = useDeleteActivityMutation();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Activity | null>(null);
+
+  async function handleDelete(id: number) {
+    if (!confirm("Remove this activity?")) return;
+    try {
+      await deleteActivity(id).unwrap();
+      toast.success("Activity removed");
+    } catch { toast.error("Failed to delete"); }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">{items.length} activit{items.length === 1 ? "y" : "ies"}</p>
+        <Button onClick={() => { setEditing(null); setOpen(true); }}>
+          <Plus className="h-4 w-4 mr-2" /> Add activity
+        </Button>
+      </div>
+      {isLoading ? (
+        <div className="text-sm text-muted-foreground py-12 text-center">Loading…</div>
+      ) : items.length === 0 ? (
+        <Card className="p-12 text-center text-muted-foreground">
+          <ActivityIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
+          No activity yet. Click <strong>Add activity</strong> to create your first one.
+        </Card>
+      ) : (
+        <div className="grid gap-2">
+          {items.map((a) => (
+            <Card key={a.id} className="p-3 flex items-start justify-between gap-3 hover:shadow-sm transition-shadow">
+              <div className="min-w-0 flex-1">
+                <div className="font-medium truncate">{a.body}</div>
+                <div className="text-xs text-muted-foreground">
+                  {new Date(a.created_at).toLocaleString(undefined, {
+                    month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
+                  })}
+                </div>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <Button size="icon" variant="ghost" onClick={() => { setEditing(a); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                <Button size="icon" variant="ghost" onClick={() => handleDelete(a.id)}><Trash2 className="h-4 w-4" /></Button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+      <ActivityDialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }} activity={editing} />
+    </div>
+  );
+}
+
+function ActivityDialog({ open, onOpenChange, activity }: { open: boolean; onOpenChange: (v: boolean) => void; activity: Activity | null }) {
+  const [body, setBody] = useState("");
+  const [createActivity] = useCreateActivityMutation();
+  const [updateActivity] = useUpdateActivityMutation();
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open) setBody(activity?.body ?? "");
+  }, [open, activity]);
+
+  async function handleSave() {
+    const trimmed = body.trim();
+    if (!trimmed) { toast.error("Activity can't be empty"); return; }
+    if (trimmed.length > ACTIVITY_BODY_MAX) { toast.error(`Keep it under ${ACTIVITY_BODY_MAX} characters`); return; }
+    try {
+      setSaving(true);
+      if (activity) {
+        await updateActivity({ id: activity.id, body: { body: trimmed } }).unwrap();
+        toast.success("Activity updated");
+      } else {
+        await createActivity({ body: trimmed }).unwrap();
+        toast.success("Activity added");
+      }
+      onOpenChange(false);
+    } catch { toast.error("Failed to save"); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>{activity ? "Edit activity" : "Add activity"}</DialogTitle></DialogHeader>
+        <div className="grid gap-1.5">
+          <Label>Activity</Label>
+          <Input value={body} maxLength={ACTIVITY_BODY_MAX} onChange={(e) => setBody(e.target.value)} placeholder="What happened?" />
+          <p className="text-[11px] text-muted-foreground text-right">{body.length}/{ACTIVITY_BODY_MAX}</p>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

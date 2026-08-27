@@ -83,6 +83,17 @@ export type Product = {
 export type ProductInsert = Omit<Product, "id" | "created_at">;
 export type ProductUpdate = Partial<ProductInsert>;
 
+export type Activity = {
+  id: number;
+  body: string;
+  created_by: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ActivityInsert = { body: string };
+export type ActivityUpdate = Partial<ActivityInsert>;
+
 export type BaseLocation = {
   id: string;
   name: string;

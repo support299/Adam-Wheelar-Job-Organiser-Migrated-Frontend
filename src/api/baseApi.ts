@@ -62,6 +62,7 @@ export const baseApi = createApi({
     "GhlUser",
     "ContactNote",
     "GhlToken",
+    "Activity",
   ],
   endpoints: () => ({}),
 });
