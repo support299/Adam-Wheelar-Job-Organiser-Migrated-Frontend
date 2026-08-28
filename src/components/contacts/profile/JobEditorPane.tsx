@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,14 @@ import {
 import { X, Plus, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AddressAutocomplete } from "@/components/jobs/AddressAutocomplete";
+import { ActivityCombobox } from "@/components/jobs/ActivityCombobox";
+import { Section, Field } from "@/components/jobs/formLayout";
+import {
+  DURATION_OPTIONS,
+  durationLabel,
+  CALL_STATUS_OPTIONS,
+  STATUS_OPTIONS,
+} from "@/components/jobs/jobFieldOptions";
 import { addFrequency, FREQUENCY_LABELS, type RecurrenceFrequency } from "@/lib/jobs";
 import {
   useUpdateJobMutation,
@@ -39,31 +47,13 @@ import {
 } from "@/api/jobsApi";
 import { useListStaffQuery } from "@/api/staffApi";
 import { useListProductsQuery } from "@/api/productsApi";
-import { useListActivitiesQuery, useCreateActivityMutation } from "@/api/activitiesApi";
 import type { Job, JobProductLine } from "@/api/types";
-
-const ACTIVITY_MAX_LEN = 30;
 
 type Props = {
   job: Job;
   onSaved?: () => void;
 };
 
-const DURATION_OPTIONS = [30, 60, 90, 120, 180, 240];
-const CALL_STATUS_OPTIONS = [
-  { value: "not_called", label: "Not called" },
-  { value: "connected", label: "Call connected" },
-  { value: "not_connected", label: "Call not connected" },
-  { value: "call_back", label: "Call back" },
-];
-const STATUS_OPTIONS = [
-  { value: "pending", label: "Pending" },
-  { value: "scheduled", label: "Scheduled" },
-  { value: "rescheduled", label: "Rescheduled" },
-  { value: "completed", label: "Completed" },
-  { value: "skip", label: "Skip this time" },
-  { value: "not_interested", label: "Not interested anymore" },
-];
 const COUNTS_AS_CALL = new Set(["connected", "not_connected", "call_back"]);
 const DONE_STATUSES = new Set(["completed", "skip"]);
 
@@ -84,41 +74,6 @@ function parseCoordsFromUrl(input: string): { lat: number; lng: number } | null 
     }
   }
   return null;
-}
-
-function Field({
-  label,
-  hint,
-  htmlFor,
-  className,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  htmlFor?: string;
-  className?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className={cn("grid gap-1.5", className)}>
-      <Label htmlFor={htmlFor} className="text-sm font-medium">
-        {label}
-      </Label>
-      {children}
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-    </div>
-  );
-}
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="space-y-3">
-      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        {title}
-      </h3>
-      {children}
-    </section>
-  );
 }
 
 /**
@@ -154,21 +109,16 @@ export function JobEditorPane({ job, onSaved }: Props) {
   const [activityId, setActivityId] = useState<number | null>(job.activity ?? null);
 
   const [staffPickerOpen, setStaffPickerOpen] = useState(false);
-  const [activityPickerOpen, setActivityPickerOpen] = useState(false);
-  const [activitySearch, setActivitySearch] = useState("");
-  const [creatingActivity, setCreatingActivity] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const { data: allStaff = [] } = useListStaffQuery();
   const { data: allProducts = [] } = useListProductsQuery();
-  const { data: activities = [] } = useListActivitiesQuery();
   const { data: jobProducts } = useGetJobProductsQuery(job.id);
 
   const [updateJob] = useUpdateJobMutation();
   const [setJobStaff] = useSetJobStaffMutation();
   const [setJobProducts] = useSetJobProductsMutation();
-  const [createActivity] = useCreateActivityMutation();
 
   // Line items come from their own endpoint; hydrate once they arrive.
   useEffect(() => {
@@ -189,34 +139,8 @@ export function JobEditorPane({ job, onSaved }: Props) {
   );
   const dateLabel = serviceType === "installation" ? "Installation date" : "Service date";
 
-  const selectedActivity = activities.find((a) => a.id === activityId) ?? null;
-  const trimmedActivitySearch = activitySearch.trim();
-  const filteredActivities = trimmedActivitySearch
-    ? activities.filter((a) => a.body.toLowerCase().includes(trimmedActivitySearch.toLowerCase()))
-    : activities;
-  const canCreateActivity =
-    trimmedActivitySearch.length > 0 &&
-    !activities.some((a) => a.body.toLowerCase() === trimmedActivitySearch.toLowerCase());
-
   function toggleStaff(id: string) {
     setStaffIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  }
-
-  async function createAndSelectActivity() {
-    const body = trimmedActivitySearch.slice(0, ACTIVITY_MAX_LEN);
-    if (!body) return;
-    try {
-      setCreatingActivity(true);
-      const created = await createActivity({ body }).unwrap();
-      setActivityId(created.id);
-      setActivitySearch("");
-      setActivityPickerOpen(false);
-      toast.success(`Activity "${created.body}" created`);
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Failed to create activity");
-    } finally {
-      setCreatingActivity(false);
-    }
   }
 
   function addLineItem() {
@@ -423,7 +347,7 @@ export function JobEditorPane({ job, onSaved }: Props) {
                 <SelectContent>
                   {DURATION_OPTIONS.map((d) => (
                     <SelectItem key={d} value={String(d)}>
-                      {d < 60 ? `${d} min` : `${d / 60} hour${d === 60 ? "" : "s"}`}
+                      {durationLabel(d)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -465,81 +389,7 @@ export function JobEditorPane({ job, onSaved }: Props) {
 
         {/* Activity */}
         <Section title="Activity">
-          <div className="grid gap-1.5">
-            <Popover open={activityPickerOpen} onOpenChange={setActivityPickerOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  role="combobox"
-                  className={cn("w-full justify-between font-normal", !selectedActivity && "text-muted-foreground")}
-                >
-                  {selectedActivity ? selectedActivity.body : "Select or create an activity…"}
-                  <ChevronsUpDown className="h-4 w-4 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start">
-                <Command shouldFilter={false}>
-                  <CommandInput
-                    placeholder="Search or type a new activity…"
-                    value={activitySearch}
-                    onValueChange={setActivitySearch}
-                    maxLength={ACTIVITY_MAX_LEN}
-                  />
-                  <CommandList>
-                    {activityId != null && (
-                      <CommandGroup>
-                        <CommandItem
-                          value="__clear__"
-                          onSelect={() => {
-                            setActivityId(null);
-                            setActivitySearch("");
-                            setActivityPickerOpen(false);
-                          }}
-                        >
-                          <X className="mr-2 h-4 w-4" /> Clear activity
-                        </CommandItem>
-                      </CommandGroup>
-                    )}
-                    <CommandGroup>
-                      {filteredActivities.length === 0 && !canCreateActivity && (
-                        <CommandEmpty>No activities yet.</CommandEmpty>
-                      )}
-                      {filteredActivities.map((a) => (
-                        <CommandItem
-                          key={a.id}
-                          value={String(a.id)}
-                          onSelect={() => {
-                            setActivityId(a.id);
-                            setActivitySearch("");
-                            setActivityPickerOpen(false);
-                          }}
-                        >
-                          <Check className={cn("mr-2 h-4 w-4", activityId === a.id ? "opacity-100" : "opacity-0")} />
-                          {a.body}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                    {canCreateActivity && (
-                      <CommandGroup>
-                        <CommandItem
-                          value="__create__"
-                          disabled={creatingActivity}
-                          onSelect={createAndSelectActivity}
-                        >
-                          <Plus className="mr-2 h-4 w-4" />
-                          Create “{trimmedActivitySearch.slice(0, ACTIVITY_MAX_LEN)}”
-                        </CommandItem>
-                      </CommandGroup>
-                    )}
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-            <p className="text-xs text-muted-foreground">
-              One classification for this job. Type a new name and choose “Create” to add it.
-            </p>
-          </div>
+          <ActivityCombobox value={activityId} onChange={setActivityId} />
         </Section>
 
         {/* Status & payment */}

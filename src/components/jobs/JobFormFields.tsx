@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { X, Plus, Check, ChevronsUpDown } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -25,8 +25,14 @@ import {
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { AddressAutocomplete } from "@/components/jobs/AddressAutocomplete";
-import { JobActivity } from "@/components/jobs/JobActivity";
-import { contactKeyForJob } from "@/pages/ContactsListPage";
+import { ActivityCombobox } from "@/components/jobs/ActivityCombobox";
+import { Section, Field } from "@/components/jobs/formLayout";
+import {
+  DURATION_OPTIONS,
+  durationLabel,
+  CALL_STATUS_OPTIONS,
+  STATUS_OPTIONS,
+} from "@/components/jobs/jobFieldOptions";
 import { FREQUENCY_LABELS, type RecurrenceFrequency } from "@/lib/jobs";
 import { toast } from "sonner";
 import type { Job, GhlContact } from "@/api/types";
@@ -67,8 +73,6 @@ export function JobFormFields({
   migrationMode,
   form,
   setForm,
-  activeTab,
-  setActiveTab,
   addressMode,
   setAddressMode,
   staffIds,
@@ -96,19 +100,15 @@ export function JobFormFields({
   const completedAtDate = form.completed_at ? form.completed_at.slice(0, 10) : "";
   const completedAtTime = form.completed_at ? form.completed_at.slice(11, 16) : "";
 
-  // cmdk's CommandInput ignores plain `defaultValue` — it always drives the
-  // input from its own internal (initially empty) search state unless given a
-  // controlled value, so the search text must be synced in explicitly.
+  // cmdk's CommandInput needs its search text synced in explicitly.
   const [contactSearchValue, setContactSearchValue] = useState(initialContactSearchTerm ?? "");
   useEffect(() => {
     if (initialContactSearchTerm) setContactSearchValue(initialContactSearchTerm);
   }, [initialContactSearchTerm]);
-  // Only for the migration flow (a search term was supplied): keep the picker
-  // open on outside clicks so the filtered list stays visible until the
-  // operator picks a contact or explicitly closes it via the trigger/Escape.
-  // The normal "Enter New Job" modal never sets initialContactSearchTerm, so
-  // its default close-on-outside-click behavior is unaffected.
   const stickyContactPicker = Boolean(initialContactSearchTerm);
+
+  const isUnpaid = form.payment_status === "unpaid";
+  const dateLabel = form.service_type === "installation" ? "Installation date" : "Service date";
 
   function setCompletedAtDate(d: string) {
     setForm((f) => ({ ...f, completed_at: d ? `${d}T${completedAtTime || "00:00"}:00Z` : null }));
@@ -118,30 +118,21 @@ export function JobFormFields({
   }
 
   return (
-    <>
-      {job && (
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-2">
-            <TabsTrigger value="details">Details</TabsTrigger>
-            <TabsTrigger value="activity">Activity</TabsTrigger>
-          </TabsList>
-        </Tabs>
-      )}
-      <div className="grid gap-4">
-        {/* Contact picker */}
-        <div className="grid gap-1.5" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
-          <Label>Contact</Label>
+    <div className="space-y-6">
+      {/* Contact */}
+      <Section title="Contact">
+        <Field label="Contact">
           <Popover open={contactPickerOpen} onOpenChange={setContactPickerOpen}>
             <PopoverTrigger asChild>
               <Button
                 type="button"
                 variant="outline"
                 role="combobox"
-                className={cn("justify-between font-normal", !selectedContact && "text-muted-foreground")}
+                className={cn("w-full justify-between font-normal", !selectedContact && "text-muted-foreground")}
               >
                 {selectedContact
                   ? selectedContact.name || selectedContact.email || selectedContact.phone || selectedContact.id
-                  : "Select a contact from System…"}
+                  : "Select a contact…"}
                 <ChevronsUpDown className="h-4 w-4 opacity-50" />
               </Button>
             </PopoverTrigger>
@@ -151,7 +142,7 @@ export function JobFormFields({
               onInteractOutside={(e) => { if (stickyContactPicker) e.preventDefault(); }}
               onPointerDownOutside={(e) => { if (stickyContactPicker) e.preventDefault(); }}
             >
-              <Command filter={(value, search) => value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0}>
+              <Command filter={(value, search) => (value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0)}>
                 <CommandInput
                   placeholder="Search by name, email, or phone…"
                   value={contactSearchValue}
@@ -159,7 +150,7 @@ export function JobFormFields({
                 />
                 <CommandList>
                   <CommandEmpty>
-                    {contacts.length === 0 ? "No contacts synced from System yet." : "No matching contacts."}
+                    {contacts.length === 0 ? "No contacts synced yet." : "No matching contacts."}
                   </CommandEmpty>
                   <CommandGroup>
                     {contacts.map((c: GhlContact) => (
@@ -182,106 +173,106 @@ export function JobFormFields({
               </Command>
             </PopoverContent>
           </Popover>
-        </div>
+        </Field>
+      </Section>
 
-        {/* Address */}
-        <div className="grid gap-2" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
-          <Label>Address</Label>
-          <Tabs value={addressMode} onValueChange={(v) => setAddressMode(v as "automatic" | "manual")}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="automatic">Automatic</TabsTrigger>
-              <TabsTrigger value="manual">Manual</TabsTrigger>
-            </TabsList>
-            <TabsContent value="automatic" className="space-y-2 mt-3">
-              <AddressAutocomplete
-                value={form.address}
-                onChange={(val) => setForm((f) => ({ ...f, address: val }))}
-                onSelect={({ address, lat, lng }) => {
-                  setForm((f) => ({ ...f, address, lat, lng }));
-                  toast.success("Address & coordinates set");
-                }}
-                placeholder="Start typing an address…"
-              />
-              {form.lat && form.lng ? (
-                <p className="text-xs text-muted-foreground">
-                  Coordinates: {form.lat.toFixed(5)}, {form.lng.toFixed(5)}
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground">Pick a suggestion to capture coordinates.</p>
-              )}
-              {previousAddresses.length > 0 && !form.address && (
-                <div className="grid gap-1.5">
-                  <p className="text-xs text-muted-foreground">Previous addresses for this contact:</p>
-                  <div className="flex flex-col gap-1">
-                    {previousAddresses.map((j) => (
-                      <Button
-                        key={j.id}
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="justify-start text-left h-auto py-1.5 px-3 text-xs"
-                        onClick={() => {
-                          setForm((f) => ({ ...f, address: j.address, lat: j.lat, lng: j.lng }));
-                          toast.success("Address filled from previous job");
-                        }}
-                      >
-                        {j.address}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </TabsContent>
-            <TabsContent value="manual" className="space-y-3 mt-3">
+      {/* Location */}
+      <Section title="Location">
+        <Tabs value={addressMode} onValueChange={(v) => setAddressMode(v as "automatic" | "manual")}>
+          <TabsList className="grid w-full max-w-xs grid-cols-2">
+            <TabsTrigger value="automatic">Search</TabsTrigger>
+            <TabsTrigger value="manual">Enter manually</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        {addressMode === "automatic" ? (
+          <Field
+            label="Address"
+            hint={
+              form.lat && form.lng
+                ? `Coordinates captured: ${form.lat.toFixed(5)}, ${form.lng.toFixed(5)}`
+                : "Pick a suggestion to capture coordinates."
+            }
+          >
+            <AddressAutocomplete
+              value={form.address}
+              onChange={(val) => setForm((f) => ({ ...f, address: val }))}
+              onSelect={({ address, lat, lng }) => {
+                setForm((f) => ({ ...f, address, lat, lng }));
+                toast.success("Address & coordinates set");
+              }}
+              placeholder="Start typing an address…"
+            />
+            {previousAddresses.length > 0 && !form.address && (
+              <div className="flex flex-col gap-1 pt-1">
+                <span className="text-xs text-muted-foreground">Previous addresses for this contact:</span>
+                {previousAddresses.map((j) => (
+                  <Button
+                    key={j.id}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="justify-start text-left h-auto py-1.5 px-3 text-xs font-normal"
+                    onClick={() => {
+                      setForm((f) => ({ ...f, address: j.address, lat: j.lat, lng: j.lng }));
+                      toast.success("Address filled from previous job");
+                    }}
+                  >
+                    {j.address}
+                  </Button>
+                ))}
+              </div>
+            )}
+          </Field>
+        ) : (
+          <div className="space-y-3">
+            <Field label="Address">
               <Input
                 value={form.address}
                 onChange={(e) => setForm({ ...form, address: e.target.value })}
                 placeholder="123 Main St, City, State"
               />
-              <div className="grid gap-1.5">
-                <Label className="text-xs">Paste a Google Maps link (auto-fills coordinates)</Label>
+            </Field>
+            <Field label="Google Maps link" hint="Paste a link and coordinates fill in automatically.">
+              <Input
+                placeholder="https://maps.google.com/?q=37.7749,-122.4194"
+                onChange={(e) => {
+                  const coords = parseCoordsFromUrl(e.target.value);
+                  if (coords) {
+                    setForm({ ...form, lat: coords.lat, lng: coords.lng });
+                    toast.success(`Coordinates set: ${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`);
+                    e.target.value = "";
+                  }
+                }}
+              />
+            </Field>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+              <Field label="Latitude">
                 <Input
-                  placeholder="https://maps.google.com/?q=37.7749,-122.4194"
-                  onChange={(e) => {
-                    const coords = parseCoordsFromUrl(e.target.value);
-                    if (coords) {
-                      setForm({ ...form, lat: coords.lat, lng: coords.lng });
-                      toast.success(`Coordinates set: ${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`);
-                      e.target.value = "";
-                    }
-                  }}
+                  type="number"
+                  step="any"
+                  value={form.lat || ""}
+                  onChange={(e) => setForm({ ...form, lat: parseFloat(e.target.value) || 0 })}
+                  placeholder="37.7749"
                 />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="grid gap-1.5">
-                  <Label>Latitude</Label>
-                  <Input
-                    type="number"
-                    step="any"
-                    value={form.lat || ""}
-                    onChange={(e) => setForm({ ...form, lat: parseFloat(e.target.value) || 0 })}
-                    placeholder="37.7749"
-                  />
-                </div>
-                <div className="grid gap-1.5">
-                  <Label>Longitude</Label>
-                  <Input
-                    type="number"
-                    step="any"
-                    value={form.lng || ""}
-                    onChange={(e) => setForm({ ...form, lng: parseFloat(e.target.value) || 0 })}
-                    placeholder="-122.4194"
-                  />
-                </div>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </div>
+              </Field>
+              <Field label="Longitude">
+                <Input
+                  type="number"
+                  step="any"
+                  value={form.lng || ""}
+                  onChange={(e) => setForm({ ...form, lng: parseFloat(e.target.value) || 0 })}
+                  placeholder="-122.4194"
+                />
+              </Field>
+            </div>
+          </div>
+        )}
+      </Section>
 
-        {/* Service type + sale date */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
-          <div className="grid gap-1.5">
-            <Label>Service Type</Label>
+      {/* Schedule */}
+      <Section title="Schedule">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+          <Field label="Service type">
             <Select
               value={(form.service_type as string) ?? "installation"}
               onValueChange={(v) =>
@@ -298,64 +289,134 @@ export function JobFormFields({
                 <SelectItem value="servicing">Servicing</SelectItem>
               </SelectContent>
             </Select>
-          </div>
+          </Field>
           {form.service_type === "installation" && (
-            <div className="grid gap-1.5">
-              <Label>Sale Date</Label>
+            <Field label="Sale date">
               <Input
                 type="date"
                 value={(form.sale_date as string) ?? ""}
                 onChange={(e) => setForm({ ...form, sale_date: e.target.value })}
               />
-            </div>
+            </Field>
           )}
-        </div>
-
-        {/* Dates */}
-        <div className="flex flex-col sm:flex-row gap-3" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
-          <div className="grid gap-1.5 flex-1 min-w-0">
-            <Label>{form.service_type === "installation" ? "Installation Date" : "Service Date"}</Label>
+          <Field label={dateLabel}>
             <Input
               type="date"
-              className="w-full"
               value={form.service_date}
               onChange={(e) => setForm({ ...form, service_date: e.target.value })}
             />
-          </div>
-          <div className="grid gap-1.5 flex-1 min-w-0">
-            <Label>Time</Label>
+          </Field>
+          <Field label="Time">
             <Input
               type="time"
-              className="w-full"
               value={form.service_time as string}
               onChange={(e) => setForm({ ...form, service_time: e.target.value })}
             />
+          </Field>
+          <Field label="Duration">
+            <Select value={String(form.duration ?? 60)} onValueChange={(v) => setForm({ ...form, duration: parseInt(v) })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {DURATION_OPTIONS.map((d) => (
+                  <SelectItem key={d} value={String(d)}>{durationLabel(d)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+
+        <Field
+          label="Repeats"
+          hint={job?.parent_job_id ? `Occurrence ${job.occurrence_index} of a recurring series.` : undefined}
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Tabs
+              value={form.is_recurring ? "recurring" : "onetime"}
+              onValueChange={(v) =>
+                setForm({
+                  ...form,
+                  is_recurring: v === "recurring",
+                  frequency: v === "recurring" ? (form.frequency ?? "monthly") : null,
+                })
+              }
+            >
+              <TabsList className="grid w-full sm:w-auto grid-cols-2">
+                <TabsTrigger value="onetime">One-time</TabsTrigger>
+                <TabsTrigger value="recurring">Recurring</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            {form.is_recurring && (
+              <Select
+                value={(form.frequency as RecurrenceFrequency | null) ?? undefined}
+                onValueChange={(v) => setForm({ ...form, frequency: v as RecurrenceFrequency })}
+              >
+                <SelectTrigger className="sm:w-48"><SelectValue placeholder="Select frequency" /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(FREQUENCY_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
-          <div className="grid gap-1.5 flex-1 min-w-0">
-            <Label>Duration (mins)</Label>
+        </Field>
+      </Section>
+
+      {/* Activity */}
+      <Section title="Activity">
+        <ActivityCombobox
+          value={form.activity ?? null}
+          onChange={(id) => setForm((f) => ({ ...f, activity: id }))}
+        />
+      </Section>
+
+      {/* Status & payment */}
+      <Section title="Status & payment">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+          <Field label="Job status">
             <Select
-              value={String(form.duration ?? 60)}
-              onValueChange={(v) => setForm({ ...form, duration: parseInt(v) })}
+              value={form.status ?? "pending"}
+              onValueChange={(v) => {
+                setForm({ ...form, status: v });
+                if (v === "pending") setStaffIds([]);
+              }}
             >
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="30">30 min</SelectItem>
-                <SelectItem value="60">1 hour</SelectItem>
-                <SelectItem value="90">1.5 hours</SelectItem>
-                <SelectItem value="120">2 hours</SelectItem>
-                <SelectItem value="180">3 hours</SelectItem>
-                <SelectItem value="240">4 hours</SelectItem>
+                {STATUS_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
-          </div>
-        </div>
-
-        {/* Service value */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
-          <div className="flex items-center gap-2 h-9">
+          </Field>
+          <Field label="Call status">
+            <Select
+              value={(form.call_status as string | null) ?? "not_called"}
+              onValueChange={(v) => setForm({ ...form, call_status: v })}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {CALL_STATUS_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Amount ($)">
+            <Input
+              type="number"
+              min={0}
+              step="0.01"
+              disabled={isUnpaid}
+              value={isUnpaid ? "" : form.service_value ?? 0}
+              onChange={(e) => setForm({ ...form, service_value: parseFloat(e.target.value) || 0 })}
+              placeholder={isUnpaid ? "Unpaid" : undefined}
+            />
+          </Field>
+          <div className="flex items-center gap-2 sm:pt-7">
             <Checkbox
-              id="payment-status-unpaid"
-              checked={form.payment_status === "unpaid"}
+              id="job-form-unpaid"
+              checked={isUnpaid}
               onCheckedChange={(checked) =>
                 setForm({
                   ...form,
@@ -364,146 +425,33 @@ export function JobFormFields({
                 })
               }
             />
-            <Label htmlFor="payment-status-unpaid" className="font-normal cursor-pointer">Unpaid</Label>
-          </div>
-          <div className={`grid gap-1.5 ${form.payment_status === "unpaid" ? "invisible" : ""}`}>
-            <Label>Amount ($)</Label>
-            <Input
-              type="number"
-              min={0}
-              step="0.01"
-              value={form.service_value ?? 0}
-              onChange={(e) => setForm({ ...form, service_value: parseFloat(e.target.value) || 0 })}
-            />
+            <Label htmlFor="job-form-unpaid" className="text-sm font-normal cursor-pointer">
+              Mark as unpaid
+            </Label>
           </div>
         </div>
 
-        {/* Recurring */}
-        <div className="grid gap-1.5" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
-          <Label>Job Type</Label>
-          <Tabs
-            value={form.is_recurring ? "recurring" : "onetime"}
-            onValueChange={(v) =>
-              setForm({
-                ...form,
-                is_recurring: v === "recurring",
-                frequency: v === "recurring" ? (form.frequency ?? "monthly") : null,
-              })
-            }
-          >
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="onetime">One-Time</TabsTrigger>
-              <TabsTrigger value="recurring">Recurring</TabsTrigger>
-            </TabsList>
-          </Tabs>
-          {form.is_recurring && (
-            <div className="grid gap-3 mt-2">
-              <div className="grid gap-1.5">
-                <Label>Repeat Frequency</Label>
-                <Select
-                  value={(form.frequency as RecurrenceFrequency | null) ?? undefined}
-                  onValueChange={(v) => setForm({ ...form, frequency: v as RecurrenceFrequency })}
-                >
-                  <SelectTrigger><SelectValue placeholder="Select frequency" /></SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(FREQUENCY_LABELS).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>{label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {job && job.parent_job_id && (
-                <p className="text-xs text-muted-foreground">
-                  Occurrence {job.occurrence_index} — part of a recurring series. Edit occurrences on the parent job.
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Status */}
-        <div className="grid gap-1.5" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
-          <Label>Status</Label>
-          <Select
-            value={form.status ?? "pending"}
-            onValueChange={(v) => {
-              setForm({ ...form, status: v });
-              if (v === "pending") setStaffIds([]);
-            }}
-          >
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="scheduled">Scheduled</SelectItem>
-              <SelectItem value="rescheduled">Rescheduled</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="skip">Skip This Time</SelectItem>
-              <SelectItem value="not_interested">Not Interested Anymore</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Completed At — migration only, hidden unless explicitly requested */}
         {showCompletedAtField && (
-          <div
-            className="grid grid-cols-2 gap-3 rounded-md border border-amber-400/60 bg-amber-50/50 dark:bg-amber-950/20 p-3"
-            style={job && activeTab !== "details" ? { display: "none" } : undefined}
-          >
+          <div className="grid grid-cols-2 gap-3 rounded-md border border-amber-400/60 bg-amber-50/50 dark:bg-amber-950/20 p-3">
             <div className="col-span-2 text-xs font-medium text-amber-700 dark:text-amber-400">
-              Migration-only field — Completed At (UTC)
+              Migration-only — Completed At (UTC)
             </div>
-            <div className="grid gap-1.5">
-              <Label>Date</Label>
+            <Field label="Date">
               <Input type="date" value={completedAtDate} onChange={(e) => setCompletedAtDate(e.target.value)} />
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Time (UTC)</Label>
+            </Field>
+            <Field label="Time (UTC)">
               <Input type="time" value={completedAtTime} onChange={(e) => setCompletedAtTime(e.target.value)} />
-            </div>
+            </Field>
           </div>
         )}
+      </Section>
 
-        {/* Call status */}
-        <div className="grid gap-3" style={job && activeTab !== "activity" ? { display: "none" } : undefined}>
-          <div className="grid gap-1.5">
-            <Label>Call Status</Label>
-            <Select
-              value={(form.call_status as string | null) ?? "not_called"}
-              onValueChange={(v) => setForm({ ...form, call_status: v })}
-            >
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="not_called">Not Called</SelectItem>
-                <SelectItem value="connected">Call Connected</SelectItem>
-                <SelectItem value="not_connected">Call Not Connected</SelectItem>
-                <SelectItem value="call_back">Call Back</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {form.call_status === "call_back" && (
-            <div className="grid gap-1.5">
-              <Label>Call Back Date</Label>
-              <Input
-                type="date"
-                value={form.service_date}
-                onChange={(e) => setForm({ ...form, service_date: e.target.value })}
-              />
-              <p className="text-xs text-muted-foreground">
-                This updates the {form.service_type === "installation" ? "Installation Date" : "Service Date"}.
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Staff */}
-        <div className="grid gap-1.5" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
-          <Label>
-            Assigned Staff
-            {form.status === "pending" && (
-              <span className="ml-2 text-xs font-normal text-muted-foreground">(assign when scheduling)</span>
-            )}
-          </Label>
+      {/* Assignment */}
+      <Section title="Assignment">
+        <Field
+          label="Assigned staff"
+          hint={form.status === "pending" ? "Staff are assigned once the job is scheduled." : undefined}
+        >
           {assignableStaff.length === 0 ? (
             <p className="text-xs text-muted-foreground border rounded-md p-3">
               No staff with the <strong>User</strong> role yet. Add some in <strong>Settings → Staff</strong>.
@@ -516,11 +464,11 @@ export function JobFormFields({
                   variant="outline"
                   role="combobox"
                   disabled={form.status === "pending"}
-                  className={cn("justify-between font-normal", staffIds.length === 0 && "text-muted-foreground")}
+                  className={cn("w-full justify-between font-normal", staffIds.length === 0 && "text-muted-foreground")}
                 >
                   {staffIds.length === 0
                     ? form.status === "pending"
-                      ? "Will be assigned at scheduling"
+                      ? "Assigned at scheduling"
                       : "Select staff…"
                     : `${staffIds.length} staff selected`}
                   <ChevronsUpDown className="h-4 w-4 opacity-50" />
@@ -537,22 +485,15 @@ export function JobFormFields({
                   <CommandList>
                     <CommandEmpty>No matching staff.</CommandEmpty>
                     <CommandGroup>
-                      {assignableStaff.map((s) => {
-                        const checked = staffIds.includes(s.id);
-                        return (
-                          <CommandItem
-                            key={s.id}
-                            value={`${s.name} ${s.email ?? ""}`}
-                            onSelect={() => toggleStaff(s.id)}
-                          >
-                            <Check className={cn("mr-2 h-4 w-4", checked ? "opacity-100" : "opacity-0")} />
-                            <div className="flex flex-col">
-                              <span className="font-medium">{s.name}</span>
-                              {s.email && <span className="text-xs text-muted-foreground">{s.email}</span>}
-                            </div>
-                          </CommandItem>
-                        );
-                      })}
+                      {assignableStaff.map((s) => (
+                        <CommandItem key={s.id} value={`${s.name} ${s.email ?? ""}`} onSelect={() => toggleStaff(s.id)}>
+                          <Check className={cn("mr-2 h-4 w-4", staffIds.includes(s.id) ? "opacity-100" : "opacity-0")} />
+                          <div className="flex flex-col">
+                            <span className="font-medium">{s.name}</span>
+                            {s.email && <span className="text-xs text-muted-foreground">{s.email}</span>}
+                          </div>
+                        </CommandItem>
+                      ))}
                     </CommandGroup>
                   </CommandList>
                 </Command>
@@ -560,7 +501,7 @@ export function JobFormFields({
             </Popover>
           )}
           {staffIds.length > 0 && (
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-1 pt-1">
               {staffIds.map((id) => {
                 const s = allStaff.find((x) => x.id === id);
                 if (!s) return null;
@@ -575,110 +516,111 @@ export function JobFormFields({
               })}
             </div>
           )}
+        </Field>
+      </Section>
+
+      {/* Products */}
+      <Section title="Products / line items">
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">
+            {lineItems.length === 0
+              ? "No products added."
+              : `${lineItems.length} line item${lineItems.length === 1 ? "" : "s"}`}
+          </p>
+          <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
+            <Plus className="h-3 w-3 mr-1" /> Add line
+          </Button>
         </div>
 
-        {/* Products */}
-        <div className="grid gap-1.5" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
-          <div className="flex items-center justify-between">
-            <Label>Products / Line Items</Label>
-            <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
-              <Plus className="h-3 w-3 mr-1" /> Add line
-            </Button>
-          </div>
-          {!job && form.service_type === "servicing" && suggestedJobProducts.length > 0 && (() => {
-            const addedIds = new Set(lineItems.map((l) => l.product_id));
-            const chips = suggestedJobProducts.filter((s) => !addedIds.has(s.product_id));
-            if (chips.length === 0) return null;
-            return (
-              <div className="flex flex-wrap gap-1.5">
-                <span className="text-xs text-muted-foreground self-center">Suggested:</span>
-                {chips.map((s) => {
-                  const p = allProducts.find((x) => x.id === s.product_id);
-                  if (!p) return null;
-                  return (
-                    <button
-                      key={s.product_id}
-                      type="button"
-                      onClick={() => setLineItems((prev) => [...prev, { product_id: p.id, quantity: 1, unit_price: Number(p.price) }])}
-                      className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium hover:bg-accent transition-colors"
-                    >
-                      <Plus className="h-3 w-3" />
-                      {p.name}{p.sku ? ` (${p.sku})` : ""}
-                    </button>
-                  );
-                })}
-              </div>
-            );
-          })()}
-          {lineItems.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No products added.</p>
-          ) : (
-            <div className="space-y-2">
-              {lineItems.map((l, i) => (
-                <div key={i} className="grid grid-cols-[1fr_70px_90px_auto] gap-2 items-center">
-                  <Select
-                    value={l.product_id}
-                    onValueChange={(v) => {
-                      const p = allProducts.find((x) => x.id === v);
-                      updateLineItem(i, { product_id: v, unit_price: p ? Number(p.price) : l.unit_price });
-                    }}
+        {!job && form.service_type === "servicing" && suggestedJobProducts.length > 0 && (() => {
+          const addedIds = new Set(lineItems.map((l) => l.product_id));
+          const chips = suggestedJobProducts.filter((s) => !addedIds.has(s.product_id));
+          if (chips.length === 0) return null;
+          return (
+            <div className="flex flex-wrap gap-1.5">
+              <span className="text-xs text-muted-foreground self-center">Suggested:</span>
+              {chips.map((s) => {
+                const p = allProducts.find((x) => x.id === s.product_id);
+                if (!p) return null;
+                return (
+                  <button
+                    key={s.product_id}
+                    type="button"
+                    onClick={() => setLineItems((prev) => [...prev, { product_id: p.id, quantity: 1, unit_price: Number(p.price) }])}
+                    className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium hover:bg-accent transition-colors"
                   >
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {allProducts.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.name}{p.sku ? ` (${p.sku})` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    type="number"
-                    min={0}
-                    step="1"
-                    value={l.quantity}
-                    onChange={(e) => updateLineItem(i, { quantity: parseFloat(e.target.value) || 0 })}
-                    placeholder="Qty"
-                    className="h-9"
-                  />
-                  <Input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={l.unit_price}
-                    onChange={(e) => updateLineItem(i, { unit_price: parseFloat(e.target.value) || 0 })}
-                    placeholder="Price"
-                    className="h-9"
-                  />
-                  <Button type="button" size="icon" variant="ghost" onClick={() => removeLineItem(i)}>
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-              <div className="text-xs text-muted-foreground text-right">
-                Line items total: <strong>${lineItemsTotal.toFixed(2)}</strong>
-              </div>
+                    <Plus className="h-3 w-3" />
+                    {p.name}{p.sku ? ` (${p.sku})` : ""}
+                  </button>
+                );
+              })}
             </div>
-          )}
-        </div>
+          );
+        })()}
 
-        {/* Notes */}
-        <div className="grid gap-1.5" style={job && activeTab !== "details" ? { display: "none" } : undefined}>
-          <Label>Notes</Label>
-          <Textarea
-            rows={2}
-            value={form.notes ?? ""}
-            onChange={(e) => setForm({ ...form, notes: e.target.value })}
-          />
-        </div>
-
-        {/* Activity (job notes) — only visible when editing an existing job */}
-        {job && (
-          <div className="border-t pt-4" style={activeTab !== "activity" ? { display: "none" } : undefined}>
-            <JobActivity jobId={job.id} contactKey={contactKeyForJob(job)} />
+        {lineItems.length > 0 && (
+          <div className="space-y-2">
+            <div className="hidden sm:grid grid-cols-[1fr_80px_110px_36px] gap-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              <span>Product</span>
+              <span>Qty</span>
+              <span>Unit price</span>
+              <span />
+            </div>
+            {lineItems.map((l, i) => (
+              <div key={i} className="grid grid-cols-[1fr_80px_110px_36px] gap-2 items-center">
+                <Select
+                  value={l.product_id}
+                  onValueChange={(v) => {
+                    const p = allProducts.find((x) => x.id === v);
+                    updateLineItem(i, { product_id: v, unit_price: p ? Number(p.price) : l.unit_price });
+                  }}
+                >
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {allProducts.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}{p.sku ? ` (${p.sku})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="number"
+                  min={0}
+                  step="1"
+                  value={l.quantity}
+                  onChange={(e) => updateLineItem(i, { quantity: parseFloat(e.target.value) || 0 })}
+                  className="h-9"
+                />
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={l.unit_price}
+                  onChange={(e) => updateLineItem(i, { unit_price: parseFloat(e.target.value) || 0 })}
+                  className="h-9"
+                />
+                <Button type="button" size="icon" variant="ghost" onClick={() => removeLineItem(i)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            <div className="text-xs text-muted-foreground text-right">
+              Total: <strong className="text-foreground">${lineItemsTotal.toFixed(2)}</strong>
+            </div>
           </div>
         )}
-      </div>
-    </>
+      </Section>
+
+      {/* Notes */}
+      <Section title="Notes">
+        <Textarea
+          rows={3}
+          value={form.notes ?? ""}
+          onChange={(e) => setForm({ ...form, notes: e.target.value })}
+          placeholder="Outcome, follow-ups, anything worth remembering…"
+        />
+      </Section>
+    </div>
   );
 }

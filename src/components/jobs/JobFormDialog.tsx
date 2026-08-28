@@ -61,7 +61,7 @@ export function JobFormDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-lg w-[calc(100vw-1rem)] max-h-[92vh] overflow-y-auto p-4 sm:p-6"
+        className="max-w-2xl w-[calc(100vw-1rem)] max-h-[92vh] p-0 flex flex-col gap-0 overflow-hidden"
         onPointerDownOutside={(e) => {
           const target = e.target as HTMLElement | null;
           if (target?.closest(".pac-container")) e.preventDefault();
@@ -71,21 +71,25 @@ export function JobFormDialog({
           if (target?.closest(".pac-container")) e.preventDefault();
         }}
       >
-        <DialogHeader>
+        <DialogHeader className="px-4 pt-4 sm:px-6 shrink-0">
           <DialogTitle>{job ? "Edit Job" : "Enter New Job"}</DialogTitle>
         </DialogHeader>
-        <JobFormFields
-          {...jobForm}
-          job={job}
-          initialContactSearchTerm={initialContactSearchTerm}
-          showCompletedAtField={showCompletedAtField}
-        />
-        {jobForm.saveError && (
-          <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {jobForm.saveError}
-          </div>
-        )}
-        <DialogFooter>
+
+        <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-4 py-4 sm:px-6">
+          <JobFormFields
+            {...jobForm}
+            job={job}
+            initialContactSearchTerm={initialContactSearchTerm}
+            showCompletedAtField={showCompletedAtField}
+          />
+          {jobForm.saveError && (
+            <div className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {jobForm.saveError}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="border-t px-4 py-3 sm:px-6 shrink-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={jobForm.handleSave} disabled={jobForm.saving}>
             {jobForm.saving ? "Saving…" : "Save"}
