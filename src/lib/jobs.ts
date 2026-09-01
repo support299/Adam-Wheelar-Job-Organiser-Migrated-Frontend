@@ -66,6 +66,28 @@ export function distanceKm(a: { lat: number; lng: number }, b: { lat: number; ln
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+// Ray-casting point-in-polygon test. `ring` is an open list of {lat,lng} vertices
+// (the closing edge from the last vertex back to the first is implied). Treats
+// coordinates as planar, which is fine at the city/region scale the Map View uses
+// and matches the flat-earth approximation already used by distanceKm above.
+export function pointInPolygon(
+  pt: { lat: number; lng: number },
+  ring: { lat: number; lng: number }[],
+): boolean {
+  if (ring.length < 3) return false;
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const intersect =
+      ring[i].lat > pt.lat !== ring[j].lat > pt.lat &&
+      pt.lng <
+        ((ring[j].lng - ring[i].lng) * (pt.lat - ring[i].lat)) /
+          (ring[j].lat - ring[i].lat) +
+          ring[i].lng;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
 export function optimizeRoute<T extends { lat: number; lng: number }>(
   jobs: T[],
   start?: { lat: number; lng: number },

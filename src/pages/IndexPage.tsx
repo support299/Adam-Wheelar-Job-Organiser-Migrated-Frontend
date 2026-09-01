@@ -17,7 +17,7 @@ import {
 import {
   Plus, Pencil, Trash2, MapPin, Sparkles, Search, ArrowUp, ArrowDown,
   CalendarIcon, CalendarClock, Settings as SettingsIcon, Users, History,
-  Circle as CircleIcon, ExternalLink, Phone, PhoneCall, PhoneForwarded, Copy, BarChart3, Clock,
+  Lasso, ExternalLink, Phone, PhoneCall, PhoneForwarded, Copy, BarChart3, Clock,
   LogOut, RefreshCw, ChevronDown, LayoutDashboard,
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
@@ -58,6 +58,7 @@ import {
   type DueTag,
   daysUntil,
   distanceKm,
+  pointInPolygon,
   estimateMinutes,
   statusColor,
 } from "@/lib/jobs";
@@ -909,18 +910,17 @@ function MapViewPanel({
   onEditJobActivity: (job: Job) => void;
 }) {
   const [mapSearch, setMapSearch] = useState("");
-  const [drawCircleEnabled, setDrawCircleEnabled] = useState(false);
-  const [circle, setCircle] = useState<{ center: { lat: number; lng: number }; radiusMeters: number } | null>(null);
+  const [drawPolygonEnabled, setDrawPolygonEnabled] = useState(false);
+  const [polygon, setPolygon] = useState<{ lat: number; lng: number }[] | null>(null);
 
-  const circleFilteredJobs = useMemo(() => {
-    if (!circle) return jobs;
-    const radiusKm = circle.radiusMeters / 1000;
-    return jobs.filter((j) => distanceKm(circle.center, { lat: j.lat, lng: j.lng }) <= radiusKm);
-  }, [jobs, circle]);
+  const areaFilteredJobs = useMemo(() => {
+    if (!polygon || polygon.length < 3) return jobs;
+    return jobs.filter((j) => pointInPolygon({ lat: j.lat, lng: j.lng }, polygon));
+  }, [jobs, polygon]);
 
   const sideJobs = useMemo(() => {
     const q = mapSearch.trim().toLowerCase();
-    const base = circleFilteredJobs;
+    const base = areaFilteredJobs;
     if (!q) return base;
     return base.filter(
       (j) =>
@@ -928,7 +928,7 @@ function MapViewPanel({
         j.email.toLowerCase().includes(q) ||
         j.address.toLowerCase().includes(q),
     );
-  }, [circleFilteredJobs, mapSearch]);
+  }, [areaFilteredJobs, mapSearch]);
 
   return (
     <div className="space-y-3 max-w-[1700px] mx-auto w-full">
@@ -943,23 +943,23 @@ function MapViewPanel({
           </p>
           <div className="flex items-center gap-2">
             <Button
-              variant={drawCircleEnabled ? "default" : "outline"}
+              variant={drawPolygonEnabled ? "default" : "outline"}
               size="sm"
               onClick={() => {
-                setDrawCircleEnabled((v) => {
+                setDrawPolygonEnabled((v) => {
                   const next = !v;
-                  if (next) setCircle(null);
+                  if (next) setPolygon(null);
                   return next;
                 });
               }}
-              title="Click and drag on the map to draw a circle"
+              title="Click points on the map, then double-click (or click the first point) to close the area"
             >
-              <CircleIcon className="h-4 w-4 mr-1" />
-              {drawCircleEnabled ? "Drawing… (drag on map)" : "Draw Circle"}
+              <Lasso className="h-4 w-4 mr-1" />
+              {drawPolygonEnabled ? "Drawing… (dbl-click to close)" : "Draw Area"}
             </Button>
-            {circle && (
-              <Button variant="ghost" size="sm" onClick={() => { setCircle(null); setDrawCircleEnabled(false); }}>
-                Clear circle
+            {polygon && (
+              <Button variant="ghost" size="sm" onClick={() => { setPolygon(null); setDrawPolygonEnabled(false); }}>
+                Clear area
               </Button>
             )}
           </div>
@@ -993,13 +993,13 @@ function MapViewPanel({
       <div className="grid lg:grid-cols-[minmax(0,1fr)_360px] gap-3 items-stretch">
         <Card className="p-2 flex flex-col min-w-0">
           <JobMap
-            jobs={circleFilteredJobs}
+            jobs={areaFilteredJobs}
             focusedId={focusedJobId}
             showLabels
             onMarkerClick={(j) => setFocusedJobId(j.id)}
-            drawCircleEnabled={drawCircleEnabled}
-            circle={circle}
-            onCircleChange={(c) => { setCircle(c); setDrawCircleEnabled(false); }}
+            drawPolygonEnabled={drawPolygonEnabled}
+            polygon={polygon}
+            onPolygonChange={(p) => { setPolygon(p); setDrawPolygonEnabled(false); }}
             className="w-full h-[56vh] rounded-md overflow-hidden border bg-muted"
           />
         </Card>
@@ -1011,7 +1011,7 @@ function MapViewPanel({
           </div>
           <div className="text-xs text-muted-foreground mb-2">
             {sideJobs.length} job{sideJobs.length === 1 ? "" : "s"}
-            {circle ? ` within ${(circle.radiusMeters / 1000).toFixed(2)} km` : (dateFrom || dateTo) ? " in date range" : " (all dates)"}
+            {polygon ? " within drawn area" : (dateFrom || dateTo) ? " in date range" : " (all dates)"}
           </div>
           <div className="flex-1 overflow-y-auto space-y-1 pr-1">
             {sideJobs.length === 0 ? (
