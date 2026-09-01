@@ -61,6 +61,7 @@ export const baseApi = createApi({
     "Contact",
     "GhlUser",
     "ContactNote",
+    "JobCall",
     "GhlToken",
     "Activity",
   ],

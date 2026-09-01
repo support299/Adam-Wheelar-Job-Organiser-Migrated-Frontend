@@ -81,7 +81,7 @@ export function ContactProfileModal({ open, onOpenChange, job, onSaved }: Props)
 
           <div className="min-h-0 overflow-hidden flex flex-col">
             {mode === "notes" ? (
-              <ContactNotesList jobs={jobs} />
+              <ContactNotesList contactFilter={filter} />
             ) : !selectedJob ? (
               <div className="flex-1 grid place-items-center text-sm text-muted-foreground">
                 {isLoading ? "Loading…" : "Select a job"}

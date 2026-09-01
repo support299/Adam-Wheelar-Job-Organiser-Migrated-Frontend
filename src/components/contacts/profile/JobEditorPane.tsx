@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
 import { AddressAutocomplete } from "@/components/jobs/AddressAutocomplete";
 import { ActivityCombobox } from "@/components/jobs/ActivityCombobox";
 import { Section, Field } from "@/components/jobs/formLayout";
+import { JobCallLog } from "@/components/contacts/profile/JobCallLog";
 import {
   DURATION_OPTIONS,
   durationLabel,
@@ -405,7 +406,16 @@ export function JobEditorPane({ job, onSaved }: Props) {
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Call status">
+            <Field
+              label={
+                <>
+                  Call status{" "}
+                  <span className="font-normal text-amber-600 dark:text-amber-500">
+                    (deprecated — will be removed in future)
+                  </span>
+                </>
+              }
+            >
               <Select value={callStatus} onValueChange={setCallStatus}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -587,6 +597,9 @@ export function JobEditorPane({ job, onSaved }: Props) {
             placeholder="Outcome, follow-ups, anything worth remembering…"
           />
         </Section>
+
+        {/* Call log */}
+        <JobCallLog jobId={job.id} />
       </div>
 
       {error && (
