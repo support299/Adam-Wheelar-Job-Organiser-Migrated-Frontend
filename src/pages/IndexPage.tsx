@@ -995,7 +995,6 @@ function MapViewPanel({
           <JobMap
             jobs={areaFilteredJobs}
             focusedId={focusedJobId}
-            showLabels
             onMarkerClick={(j) => setFocusedJobId(j.id)}
             drawPolygonEnabled={drawPolygonEnabled}
             polygon={polygon}

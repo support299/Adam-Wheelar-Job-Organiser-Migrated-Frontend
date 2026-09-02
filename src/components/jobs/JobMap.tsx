@@ -5,11 +5,6 @@ import type { Job } from "@/api/types";
 import { statusColor } from "@/lib/jobs";
 import { buildGhlContactUrl } from "@/lib/ghlContactUrl";
 
-// Above this many visible jobs we skip per-marker name labels: each label is a
-// custom OverlayView whose draw() runs on every pan/zoom, so thousands of them
-// freeze the page. Labels reappear automatically once filters shrink the set.
-const LABEL_MAX = 150;
-
 // Jobs that failed geocoding are stored at 0,0; plotting them drags the map
 // bounds across the ocean. Only plot jobs with real coordinates.
 function hasValidCoords(j: { lat: number; lng: number }): boolean {
@@ -28,7 +23,6 @@ type Props = {
   selectedIds?: Set<string>;
   onMarkerClick?: (job: Job) => void;
   focusedId?: string | null;
-  showLabels?: boolean;
   className?: string;
   drawPolygonEnabled?: boolean;
   polygon?: { lat: number; lng: number }[] | null;
@@ -38,7 +32,7 @@ type Props = {
 };
 
 export function JobMap({
-  jobs, routeOrder, selectedIds, onMarkerClick, focusedId, showLabels,
+  jobs, routeOrder, selectedIds, onMarkerClick, focusedId,
   className, drawPolygonEnabled, polygon, onPolygonChange, originPoint, routeReturnsToOrigin,
 }: Props) {
   const { ready } = useGoogleMaps();
@@ -46,7 +40,6 @@ export function JobMap({
   const mapRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
   const clustererRef = useRef<MarkerClusterer | null>(null);
-  const overlaysRef = useRef<google.maps.OverlayView[]>([]);
   const markerByIdRef = useRef<Map<string, google.maps.Marker>>(new Map());
   const polyRef = useRef<google.maps.Polyline | null>(null);
   const originMarkerRef = useRef<google.maps.Marker | null>(null);
@@ -62,14 +55,21 @@ export function JobMap({
 
   useEffect(() => {
     if (!ready || !containerRef.current || mapRef.current) return;
-    mapRef.current = new google.maps.Map(containerRef.current, {
+    hideNativeInfoWindowCloseButton();
+    const map = new google.maps.Map(containerRef.current, {
       center: { lat: 39.5, lng: -98.35 },
       zoom: 4,
       mapTypeControl: false,
       streetViewControl: false,
       fullscreenControl: false,
     });
+    mapRef.current = map;
     infoRef.current = new google.maps.InfoWindow();
+    // "Out of focus" close: a click on empty map, or the start of a pan, closes
+    // whatever info card is open. Marker clicks don't reach these — Maps doesn't
+    // bubble a marker click into the map's own click event.
+    map.addListener("click", () => infoRef.current?.close());
+    map.addListener("dragstart", () => infoRef.current?.close());
   }, [ready]);
 
   useEffect(() => {
@@ -80,8 +80,6 @@ export function JobMap({
     clustererRef.current = null;
     markersRef.current.forEach((m) => m.setMap(null));
     markersRef.current = [];
-    overlaysRef.current.forEach((o) => o.setMap(null));
-    overlaysRef.current = [];
     markerByIdRef.current.clear();
     polyRef.current?.setMap(null);
     polyRef.current = null;
@@ -92,7 +90,6 @@ export function JobMap({
     // Cluster only in plain map mode. In route mode (Daily Planner) markers are
     // numbered stops joined by a polyline, so they must stay individually visible.
     const useCluster = !routeOrder;
-    const renderLabels = !!showLabels && plottable.length <= LABEL_MAX;
     const bounds = new google.maps.LatLngBounds();
     const markers = plottable.map((job) => {
       const isSelected = selectedIds?.has(job.id);
@@ -115,21 +112,12 @@ export function JobMap({
         },
       });
       marker.addListener("click", () => {
-        infoRef.current?.setContent(buildInfoHtml(job));
+        infoRef.current?.setContent(buildInfoContent(job, () => infoRef.current?.close()));
         infoRef.current?.open({ map, anchor: marker });
         onMarkerClick?.(job);
       });
       bounds.extend({ lat: job.lat, lng: job.lng });
       markerByIdRef.current.set(job.id, marker);
-      if (renderLabels) {
-        const overlay = createLabelOverlay(
-          { lat: job.lat, lng: job.lng },
-          `<div style="font-weight:600;">${escapeHtml(job.name)}</div>
-           <div style="opacity:.85;">$${Number(job.service_value).toFixed(0)} · ${job.service_time.slice(0,5)}</div>`,
-        );
-        overlay.setMap(map);
-        overlaysRef.current.push(overlay);
-      }
       return marker;
     });
     markersRef.current = markers;
@@ -191,7 +179,7 @@ export function JobMap({
         }
       }
     }
-  }, [ready, jobs, routeOrder, selectedIds, onMarkerClick, showLabels, originPoint, routeReturnsToOrigin, drawPolygonEnabled]);
+  }, [ready, jobs, routeOrder, selectedIds, onMarkerClick, originPoint, routeReturnsToOrigin, drawPolygonEnabled]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -200,7 +188,7 @@ export function JobMap({
     if (!job) return;
     map.panTo({ lat: job.lat, lng: job.lng });
     // Open by position (not anchor): the marker may be hidden inside a cluster.
-    infoRef.current?.setContent(buildInfoHtml(job));
+    infoRef.current?.setContent(buildInfoContent(job, () => infoRef.current?.close()));
     infoRef.current?.setPosition({ lat: job.lat, lng: job.lng });
     infoRef.current?.open({ map });
   }, [focusedId, ready, jobs]);
@@ -455,42 +443,72 @@ export function JobMap({
   );
 }
 
-function escapeHtml(s: string) {
-  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+// Google renders its own close (×) button outside our content, positioned for
+// its default-sized card; against our compact one it lands off from the title
+// instead of sharing its row. Hide it once, globally, and draw our own instead.
+let nativeCloseButtonHidden = false;
+function hideNativeInfoWindowCloseButton() {
+  if (nativeCloseButtonHidden || typeof document === "undefined") return;
+  nativeCloseButtonHidden = true;
+  const style = document.createElement("style");
+  style.textContent = [
+    // Newer Maps builds put the close button in its own header strip; older
+    // ones render it as a floating button. Hide whichever is present.
+    ".gm-style-iw-chr { display: none !important; }",
+    ".gm-style-iw button.gm-ui-hover-effect { display: none !important; }",
+    // With the strip gone, give the content a little breathing room up top.
+    ".gm-style-iw.gm-style-iw-c { padding-top: 12px !important; }",
+  ].join("");
+  document.head.appendChild(style);
 }
 
-function buildInfoHtml(job: Job): string {
-  const contactLink = job.ghl_contact_id
-    ? `<div style="margin-top:8px;"><a href="${buildGhlContactUrl(job.ghl_contact_id)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:4px 8px;background:#2563eb;color:#fff;border-radius:4px;font-size:12px;text-decoration:none;font-weight:500;">Open Contact ↗</a></div>`
-    : "";
-  return `<div style="font-family:system-ui;min-width:200px;">
-    <div style="font-weight:600;font-size:14px;margin-bottom:4px;">${escapeHtml(job.name)}</div>
-    <div style="font-size:12px;color:#555;">${escapeHtml(job.email)}</div>
-    <div style="font-size:12px;margin-top:6px;">${escapeHtml(job.address)}</div>
-    <div style="font-size:12px;margin-top:6px;">📅 ${job.service_date} · ${job.service_time.slice(0,5)}</div>
-    <div style="font-size:12px;margin-top:4px;">💰 $${Number(job.service_value).toFixed(2)} · ${job.status}</div>
-    ${contactLink}
-  </div>`;
-}
+// Kept deliberately compact: with many markers close together, a tall/wide
+// InfoWindow covers the neighboring dots you'd otherwise click next. Full
+// detail (email, staff, call log, etc.) is already one click away in the Map
+// View side list via onMarkerClick, so this only needs to confirm the pin.
+// Built as DOM nodes (not an HTML string) so the close button gets a real
+// click handler and job text is auto-escaped via textContent.
+function buildInfoContent(job: Job, onClose: () => void): HTMLElement {
+  const root = document.createElement("div");
+  root.style.cssText = "font-family:system-ui;max-width:170px;";
 
-function createLabelOverlay(position: { lat: number; lng: number }, html: string): google.maps.OverlayView {
-  class LabelOverlay extends google.maps.OverlayView {
-    private div: HTMLDivElement | null = null;
-    onAdd() {
-      const div = document.createElement("div");
-      div.style.cssText = "position:absolute;transform:translate(-50%,-140%);background:rgba(17,24,39,0.92);color:#fff;padding:3px 6px;border-radius:6px;font-size:11px;line-height:1.25;font-family:system-ui,sans-serif;white-space:nowrap;pointer-events:none;box-shadow:0 2px 6px rgba(0,0,0,0.25);";
-      div.innerHTML = html;
-      this.div = div;
-      this.getPanes()!.markerLayer.appendChild(div);
-    }
-    draw() {
-      if (!this.div) return;
-      const p = this.getProjection()?.fromLatLngToDivPixel(new google.maps.LatLng(position.lat, position.lng));
-      if (!p) return;
-      this.div.style.left = `${p.x}px`;
-      this.div.style.top = `${p.y}px`;
-    }
-    onRemove() { this.div?.parentNode?.removeChild(this.div); this.div = null; }
+  const header = document.createElement("div");
+  header.style.cssText = "display:flex;align-items:flex-start;justify-content:space-between;gap:8px;";
+  const title = document.createElement("div");
+  title.style.cssText = "font-weight:600;font-size:12px;line-height:1.3;";
+  title.textContent = job.name;
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.setAttribute("aria-label", "Close");
+  closeBtn.textContent = "×";
+  closeBtn.style.cssText =
+    "flex:none;border:0;background:transparent;color:#888;font-size:15px;line-height:1;cursor:pointer;padding:0;margin:0;";
+  closeBtn.addEventListener("click", onClose);
+  header.appendChild(title);
+  header.appendChild(closeBtn);
+  root.appendChild(header);
+
+  const address = document.createElement("div");
+  address.style.cssText =
+    "font-size:11px;color:#666;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
+  address.textContent = job.address;
+  root.appendChild(address);
+
+  const meta = document.createElement("div");
+  meta.style.cssText = "font-size:11px;color:#555;margin-top:3px;";
+  meta.textContent = `$${Number(job.service_value).toFixed(0)} · ${job.service_time.slice(0, 5)}`;
+  root.appendChild(meta);
+
+  if (job.ghl_contact_id) {
+    const link = document.createElement("a");
+    link.href = buildGhlContactUrl(job.ghl_contact_id);
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = "Open Contact ↗";
+    link.style.cssText =
+      "display:inline-block;margin-top:3px;font-size:11px;color:#2563eb;font-weight:600;text-decoration:none;";
+    root.appendChild(link);
   }
-  return new LabelOverlay();
+
+  return root;
 }
