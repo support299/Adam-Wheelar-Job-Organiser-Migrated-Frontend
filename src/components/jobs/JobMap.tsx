@@ -167,19 +167,20 @@ export function JobMap({
     }
     const fitSig = `${plottable.length}:${plottable[0]?.id ?? ""}:${plottable[plottable.length - 1]?.id ?? ""}`;
     if (!bounds.isEmpty() && fitSig !== fitSigRef.current) {
-      // Record the signature even when we skip the camera move, so a data change
-      // that arrives mid-draw doesn't yank the map once drawing ends.
+      // Record the signature even when we skip the camera move, so a change that
+      // lands while fitting is suppressed doesn't yank the map afterwards.
       fitSigRef.current = fitSig;
-      // Don't re-fit while the user is drawing an area — a background job refresh
-      // must not move the map out from under them.
-      if (!drawPolygonEnabled) {
+      // Don't move the camera while drawing an area, nor when an area filter is
+      // active — the set shrinking to "jobs inside the polygon" must not zoom
+      // the map after the user finishes drawing.
+      if (!drawPolygonEnabled && !polygon) {
         map.fitBounds(bounds, 60);
         if (plottable.length === 1) {
           google.maps.event.addListenerOnce(map, "idle", () => map.setZoom(13));
         }
       }
     }
-  }, [ready, jobs, routeOrder, selectedIds, onMarkerClick, originPoint, routeReturnsToOrigin, drawPolygonEnabled]);
+  }, [ready, jobs, routeOrder, selectedIds, onMarkerClick, originPoint, routeReturnsToOrigin, drawPolygonEnabled, polygon]);
 
   useEffect(() => {
     const map = mapRef.current;
