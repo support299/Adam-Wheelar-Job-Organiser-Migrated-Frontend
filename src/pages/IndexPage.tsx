@@ -18,7 +18,7 @@ import {
   Plus, Pencil, Trash2, MapPin, Sparkles, Search, ArrowUp, ArrowDown,
   CalendarIcon, CalendarClock, Settings as SettingsIcon, Users, History,
   Lasso, ExternalLink, Phone, PhoneCall, PhoneForwarded, Copy, BarChart3, Clock,
-  LogOut, RefreshCw, ChevronDown, LayoutDashboard,
+  LogOut, RefreshCw, ChevronDown, LayoutDashboard, Filter, User,
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -1100,10 +1100,12 @@ function DailyPlanner({
   jobs,
   staff,
   jobStaffMap,
+  onOpenJob,
 }: {
   jobs: Job[];
   staff: Staff[];
   jobStaffMap: Record<string, string[]>;
+  onOpenJob: (job: Job) => void;
 }) {
   const { data: bases = [] } = useListBaseLocationsQuery();
   const [getDistanceMatrix] = useGetDistanceMatrixMutation();
@@ -1353,110 +1355,182 @@ function DailyPlanner({
     setOrderedIds(next);
   }
 
+  const activeFilterCount = [statusFilter, dueTagFilter, staffFilter].filter((v) => v !== "all").length;
+  const allDaySelected = dayJobs.length > 0 && dayJobs.every((j) => selectedIds.has(j.id));
+
+  function toggleSelectAllDay() {
+    setSelectedIds(allDaySelected ? new Set() : new Set(dayJobs.map((j) => j.id)));
+    setOrderedIds([]);
+    setRouteStats(null);
+  }
+
   return (
-    <div className="grid lg:grid-cols-[380px_1fr] gap-4">
-      <div className="space-y-3">
-        <Card className="p-4 space-y-4">
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Day</label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDate && "text-muted-foreground")}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {selectedDate
-                    ? `${new Date(selectedDate + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} · ${dayJobs.length} job${dayJobs.length === 1 ? "" : "s"}`
-                    : "Pick a date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate ? new Date(selectedDate + "T00:00:00") : undefined}
-                  onSelect={(d) => d && setSelectedDate(format(d, "yyyy-MM-dd"))}
-                  modifiers={{ hasJobs: dates.map((d) => new Date(d + "T00:00:00")) }}
-                  modifiersClassNames={{ hasJobs: "font-bold underline decoration-primary underline-offset-4" }}
-                  className={cn("p-3 pointer-events-auto")}
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
+    <div className="space-y-4">
+      {/* ── Toolbar ─────────────────────────────────────────────────── */}
+      <Card className="p-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className={cn("font-normal", !selectedDate && "text-muted-foreground")}>
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {selectedDate
+                  ? `${new Date(selectedDate + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} · ${dayJobs.length} job${dayJobs.length === 1 ? "" : "s"}`
+                  : "Pick a date"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={selectedDate ? new Date(selectedDate + "T00:00:00") : undefined}
+                onSelect={(d) => d && setSelectedDate(format(d, "yyyy-MM-dd"))}
+                modifiers={{ hasJobs: dates.map((d) => new Date(d + "T00:00:00")) }}
+                modifiersClassNames={{ hasJobs: "font-bold underline decoration-primary underline-offset-4" }}
+                className={cn("p-3 pointer-events-auto")}
+              />
+            </PopoverContent>
+          </Popover>
 
-          <div className="h-px bg-border" />
-
-          <div className="space-y-2">
-            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Filters</label>
-            <div className="grid gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="font-normal">
+                <Filter className="mr-2 h-4 w-4" />
+                Filters{activeFilterCount ? ` · ${activeFilterCount}` : ""}
+                <ChevronDown className="ml-2 h-4 w-4 opacity-60" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-64 space-y-2">
               <div className="[&>*]:w-full"><StatusFilter value={statusFilter} onChange={setStatusFilter} /></div>
               <div className="[&>*]:w-full"><DueTagFilter value={dueTagFilter} onChange={setDueTagFilter} /></div>
               <div className="[&>*]:w-full"><StaffFilter value={staffFilter} onChange={setStaffFilter} staff={staff} /></div>
-            </div>
-          </div>
+              {activeFilterCount > 0 && (
+                <Button variant="ghost" size="sm" className="w-full" onClick={() => { setStatusFilter("all"); setDueTagFilter("all"); setStaffFilter("all"); }}>
+                  Reset filters
+                </Button>
+              )}
+            </PopoverContent>
+          </Popover>
 
-          <div className="h-px bg-border" />
+          <Select value={baseId || "__none"} onValueChange={(v) => setBaseId(v === "__none" ? "" : v)}>
+            <SelectTrigger className="h-8 w-auto max-w-[12rem] gap-1.5 text-sm">
+              <MapPin className="h-4 w-4 shrink-0 opacity-60" />
+              <SelectValue placeholder={bases.length ? "Pick a base" : "Add bases in Settings"} />
+            </SelectTrigger>
+            <SelectContent>
+              {bases.length === 0 ? (
+                <SelectItem value="__none" disabled>No bases — add in Settings</SelectItem>
+              ) : (
+                <>
+                  <SelectItem value="__none">— No base —</SelectItem>
+                  {bases.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                  ))}
+                </>
+              )}
+            </SelectContent>
+          </Select>
 
-          <div className="space-y-2">
-            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Route</label>
-            <div className="grid gap-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Base location</label>
-              <Select value={baseId || "__none"} onValueChange={(v) => setBaseId(v === "__none" ? "" : v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder={bases.length ? "Pick a base" : "Add bases in Settings"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {bases.length === 0 ? (
-                    <SelectItem value="__none" disabled>No bases — add in Settings</SelectItem>
-                  ) : (
-                    <>
-                      <SelectItem value="__none">— None —</SelectItem>
-                      {bases.map((b) => (
-                        <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                      ))}
-                    </>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="grid gap-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Route shape</label>
-                <Select value={routeShape} onValueChange={(v) => setRouteShape(v as "round" | "oneway")}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="round">Round trip</SelectItem>
-                    <SelectItem value="oneway">One-way</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Optimize by</label>
-                <Select value={optimizeMetric} onValueChange={(v) => setOptimizeMetric(v as "time" | "distance")}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="time">Shortest booking time</SelectItem>
-                    <SelectItem value="distance">Shortest distance</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
+          <Select value={routeShape} onValueChange={(v) => setRouteShape(v as "round" | "oneway")}>
+            <SelectTrigger className="h-8 w-auto gap-1.5 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="round">Round trip</SelectItem>
+              <SelectItem value="oneway">One-way</SelectItem>
+            </SelectContent>
+          </Select>
 
-          <Button onClick={optimizeRoad} className="w-full" disabled={optimizing || dayJobs.length === 0 || !selectedBase}>
+          <Select value={optimizeMetric} onValueChange={(v) => setOptimizeMetric(v as "time" | "distance")}>
+            <SelectTrigger className="h-8 w-auto gap-1.5 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="time">Shortest booking time</SelectItem>
+              <SelectItem value="distance">Shortest distance</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <div className="flex-1" />
+
+          <Button size="sm" onClick={optimizeRoad} disabled={optimizing || dayJobs.length === 0 || !selectedBase}>
             <Sparkles className="h-4 w-4 mr-2" />
-            {optimizing ? "Optimizing road route…" : "Optimize Road Route"}
+            {optimizing ? "Optimizing…" : "Optimize Road Route"}
           </Button>
 
           {routeStats && orderedJobs.length > 0 && (
-            <Button variant="secondary" className="w-full" onClick={() => { setPlanName((prev) => prev || `${selectedDate} · ${selectedBase?.name ?? "Plan"}`); setSaveOpen(true); }}>
+            <Button variant="secondary" size="sm" onClick={() => { setPlanName((prev) => prev || `${selectedDate} · ${selectedBase?.name ?? "Plan"}`); setSaveOpen(true); }}>
               Save Plan
             </Button>
           )}
 
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={clearSel} disabled={selectedIds.size === 0 && orderedIds.length === 0}>
-              Clear
-            </Button>
-          </div>
-        </Card>
+          <Button variant="outline" size="sm" onClick={clearSel} disabled={selectedIds.size === 0 && orderedIds.length === 0}>
+            Clear
+          </Button>
+        </div>
+      </Card>
+
+      {/* ── Body ────────────────────────────────────────────────────── */}
+      <div className="grid lg:grid-cols-[380px_1fr] gap-4 lg:items-start">
+      <div className="space-y-3 lg:max-h-[75vh] lg:overflow-y-auto lg:pr-1">
+        {orderedJobs.length > 1 && (
+          <Card className="p-3">
+            <div className="flex items-center justify-between mb-1">
+              <div className="text-xs font-semibold uppercase text-muted-foreground">Route</div>
+              <div className="text-xs font-medium tabular-nums">
+                {routeStats
+                  ? `${routeStats.roadKm.toFixed(1)} km · ~${routeStats.roadMinutes} min`
+                  : `${totals.km.toFixed(1)} km · ~${totals.minutes} min`}
+              </div>
+            </div>
+            {selectedBase && (
+              <div className="text-[11px] text-muted-foreground mb-2 flex items-center gap-1">
+                <MapPin className="h-3 w-3 shrink-0" />
+                <span className="truncate">
+                  From {selectedBase.name}{routeShape === "round" ? " · round trip" : " · one-way"}
+                </span>
+              </div>
+            )}
+            <ol className="rounded-md border divide-y bg-card max-h-[38vh] overflow-y-auto">
+              {orderedJobs.map((j, i) => {
+                const legIdx = selectedBase && routeStats ? i : i - 1;
+                const leg = routeStats?.legs[legIdx];
+                return (
+                  <li key={j.id} className="flex items-center gap-2.5 px-2.5 py-2">
+                    <span className="h-6 w-6 rounded-full bg-primary text-primary-foreground inline-flex items-center justify-center text-[11px] font-bold shrink-0">
+                      {i + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-medium truncate">{j.name}</div>
+                      {leg && (
+                        <div className="text-[10px] text-muted-foreground tabular-nums">
+                          {leg.distanceKm.toFixed(1)} km · ~{leg.minutes} min
+                          {i === 0 && selectedBase ? " from base" : ""}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col shrink-0">
+                      <Button size="icon" variant="ghost" className="h-5 w-6" onClick={() => move(i, -1)} disabled={i === 0}>
+                        <ArrowUp className="h-3 w-3" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-5 w-6" onClick={() => move(i, 1)} disabled={i === orderedJobs.length - 1}>
+                        <ArrowDown className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </li>
+                );
+              })}
+              {selectedBase && routeShape === "round" && routeStats && (
+                <li className="flex items-center gap-2.5 px-2.5 py-2 bg-muted/40">
+                  <span className="h-6 w-6 rounded-full bg-emerald-600 text-white inline-flex items-center justify-center text-[11px] font-bold shrink-0">B</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-medium truncate">Return to {selectedBase.name}</div>
+                    {(() => {
+                      const leg = routeStats.legs[routeStats.legs.length - 1];
+                      return leg ? (
+                        <div className="text-[10px] text-muted-foreground tabular-nums">{leg.distanceKm.toFixed(1)} km · ~{leg.minutes} min</div>
+                      ) : null;
+                    })()}
+                  </div>
+                </li>
+              )}
+            </ol>
+          </Card>
+        )}
 
         {proximityHints.length > 0 && (
           <Card className="p-3">
@@ -1474,7 +1548,23 @@ function DailyPlanner({
         )}
 
         <Card className="p-3">
-          <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">Day jobs ({dayJobs.length})</div>
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-xs font-semibold uppercase text-muted-foreground">
+              Day jobs ({selectedJobs.length > 0 ? `${selectedJobs.length}/${dayJobs.length}` : dayJobs.length})
+            </div>
+            {dayJobs.length > 0 && (
+              <label className="flex items-center gap-1.5 text-[11px] font-medium text-primary cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="cursor-pointer"
+                  checked={allDaySelected}
+                  ref={(el) => { if (el) el.indeterminate = selectedJobs.length > 0 && !allDaySelected; }}
+                  onChange={toggleSelectAllDay}
+                />
+                {allDaySelected ? "Clear" : "Select all"}
+              </label>
+            )}
+          </div>
           {dayJobs.length === 0 ? (
             <div className="text-xs text-muted-foreground py-4 text-center">No jobs for this date</div>
           ) : (
@@ -1485,81 +1575,47 @@ function DailyPlanner({
                   .map((sid) => staff.find((s) => s.id === sid)?.name)
                   .filter(Boolean);
                 return (
-                  <label key={j.id} className={`flex items-start gap-2 p-2 rounded text-xs cursor-pointer border ${checked ? "bg-accent border-primary/40" : "hover:bg-accent/50"}`}>
-                    <input type="checkbox" checked={checked} onChange={() => toggle(j.id)} className="mt-0.5" />
+                  <div
+                    key={j.id}
+                    onClick={() => toggle(j.id)}
+                    className={`flex items-start gap-2 p-2 rounded text-xs border cursor-pointer ${checked ? "bg-accent border-primary/40" : "hover:bg-accent/50"}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggle(j.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="mt-0.5 cursor-pointer"
+                      aria-label={`Select ${j.name}`}
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onOpenJob(j); }}
+                      className="mt-0.5 shrink-0 text-muted-foreground hover:text-primary"
+                      title="Open contact details"
+                    >
+                      <User className="h-3.5 w-3.5" />
+                    </button>
                     <div className="min-w-0 flex-1">
-                      <div className="font-medium truncate">{j.name}</div>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onOpenJob(j); }}
+                        className="block max-w-full truncate text-left font-medium hover:underline"
+                        title="Open contact details"
+                      >
+                        {j.name}
+                      </button>
                       <div className="text-muted-foreground truncate">{j.service_time.slice(0, 5)} · {j.address}</div>
                       {assignedStaff.length > 0 && (
                         <div className="text-[10px] text-primary/70 truncate mt-0.5">{assignedStaff.join(", ")}</div>
                       )}
                     </div>
-                  </label>
+                  </div>
                 );
               })}
             </div>
           )}
         </Card>
-
-        {orderedJobs.length > 1 && (
-          <Card className="p-3">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-xs font-semibold uppercase text-muted-foreground">Route</div>
-              <div className="text-xs text-muted-foreground">
-                {routeStats
-                  ? `${routeStats.roadKm.toFixed(1)} km road · ~${routeStats.roadMinutes} min`
-                  : `${totals.km.toFixed(1)} km · ~${totals.minutes} min (straight-line)`}
-              </div>
-            </div>
-            {selectedBase && (
-              <div className="text-[11px] text-muted-foreground mb-2 flex items-center gap-1">
-                <MapPin className="h-3 w-3" />
-                Starting from <strong className="font-medium">{selectedBase.name}</strong>
-                {routeShape === "round" ? " · returns to base" : " · one-way"}
-              </div>
-            )}
-            <ol className="space-y-1">
-              {orderedJobs.map((j, i) => {
-                const legIdx = selectedBase && routeStats ? i : i - 1;
-                const leg = routeStats?.legs[legIdx];
-                return (
-                  <li key={j.id} className="flex flex-col gap-1 text-xs p-2 rounded border bg-card">
-                    {leg && (
-                      <div className="text-[10px] text-muted-foreground pl-7">
-                        ↳ {leg.distanceKm.toFixed(1)} km · ~{leg.minutes} min from{" "}
-                        {i === 0 && selectedBase ? selectedBase.name : `stop ${i}`}
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2">
-                      <span className="h-5 w-5 rounded-full bg-primary text-primary-foreground inline-flex items-center justify-center text-[10px] font-bold shrink-0">
-                        {i + 1}
-                      </span>
-                      <span className="truncate flex-1">{j.name}</span>
-                      <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => move(i, -1)} disabled={i === 0}>
-                        <ArrowUp className="h-3 w-3" />
-                      </Button>
-                      <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => move(i, 1)} disabled={i === orderedJobs.length - 1}>
-                        <ArrowDown className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </li>
-                );
-              })}
-              {selectedBase && routeShape === "round" && routeStats && (
-                <li className="flex items-center gap-2 text-xs p-2 rounded border bg-muted/50">
-                  <span className="h-5 w-5 rounded-full bg-emerald-600 text-white inline-flex items-center justify-center text-[10px] font-bold shrink-0">B</span>
-                  <span className="truncate flex-1">Return to {selectedBase.name}</span>
-                  {(() => {
-                    const leg = routeStats.legs[routeStats.legs.length - 1];
-                    return leg ? (
-                      <span className="text-[10px] text-muted-foreground">{leg.distanceKm.toFixed(1)} km · ~{leg.minutes} min</span>
-                    ) : null;
-                  })()}
-                </li>
-              )}
-            </ol>
-          </Card>
-        )}
       </div>
 
       <JobMap
@@ -1570,6 +1626,7 @@ function DailyPlanner({
         routeReturnsToOrigin={routeShape === "round"}
         className="w-full h-[75vh] rounded-lg overflow-hidden border bg-muted"
       />
+      </div>
 
       <Dialog open={saveOpen} onOpenChange={setSaveOpen}>
         <DialogContent className="max-w-md">
@@ -1982,7 +2039,12 @@ export function IndexPage() {
 
           {/* DAILY PLANNER */}
           <TabsContent value="planner">
-            <DailyPlanner jobs={plannerJobs} staff={staff} jobStaffMap={jobStaffMap} />
+            <DailyPlanner
+              jobs={plannerJobs}
+              staff={staff}
+              jobStaffMap={jobStaffMap}
+              onOpenJob={(j) => { setEditing(j); setDialogOpen(true); }}
+            />
           </TabsContent>
         </Tabs>
       </main>
