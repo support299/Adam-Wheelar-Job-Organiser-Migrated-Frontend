@@ -350,6 +350,14 @@ export function JobMap({
       cleanup();
       onPolygonChangeRef.current?.(null);
     };
+    const firstIcon = (scale: number, strokeWeight: number) => ({
+      path: google.maps.SymbolPath.CIRCLE,
+      scale,
+      fillColor: "#111",
+      fillOpacity: 1,
+      strokeColor: "#fff",
+      strokeWeight,
+    });
     const addPoint = (latLng: google.maps.LatLng) => {
       if (done) return;
       const first = pts.length === 0;
@@ -362,16 +370,24 @@ export function JobMap({
         // placing the next point). The first vertex opts back in once the area
         // has 3+ points so a click on it can close the shape.
         clickable: false,
-        icon: {
-          path: google.maps.SymbolPath.CIRCLE,
-          scale: first ? 7 : 5,
-          fillColor: first ? "#111" : "#2563eb",
-          fillOpacity: 1,
-          strokeColor: "#fff",
-          strokeWeight: 2,
-        },
+        icon: first
+          ? firstIcon(7, 2)
+          : {
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: 5,
+              fillColor: "#2563eb",
+              fillOpacity: 1,
+              strokeColor: "#fff",
+              strokeWeight: 2,
+            },
       });
-      if (first) marker.addListener("click", () => finish(pts[0]));
+      if (first) {
+        marker.addListener("click", () => finish(pts[0]));
+        // Grow the start point on hover so it's obvious it's the one to click
+        // to close the area (only fires once it's clickable, i.e. 3+ points).
+        marker.addListener("mouseover", () => marker.setIcon(firstIcon(12, 3)));
+        marker.addListener("mouseout", () => marker.setIcon(firstIcon(7, 2)));
+      }
       vertexMarkers.push(marker);
       if (pts.length === 3) {
         vertexMarkers[0].setOptions({ clickable: true, title: "Click to close the area" });
