@@ -15,7 +15,7 @@ type Props = {
   onOpenChange: (v: boolean) => void;
   job?: Job | null;
   defaultGhlContactId?: string | null;
-  defaultServiceType?: "installation" | "servicing";
+  defaultServiceType?: "installation" | "servicing" | "ad_hoc" | "workshop";
   initialTab?: "details" | "activity";
   /** Overrides applied on top of the blank form when creating a new job (e.g. prefilled from URL params). */
   initialValues?: Partial<JobInsert>;

@@ -11,6 +11,8 @@ export const STATUS_LABELS: Record<string, string> = {
 export const SERVICE_TYPE_LABELS: Record<string, string> = {
   installation: "Install",
   servicing: "Service",
+  ad_hoc: "Ad-hoc",
+  workshop: "Workshop",
 };
 
 export function statusDotClass(s: string) {

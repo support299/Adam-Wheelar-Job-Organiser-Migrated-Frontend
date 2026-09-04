@@ -96,6 +96,8 @@ export type StaffReportTotals = {
   service_count: number;
   install_revenue: number;
   install_count: number;
+  workshop_count: number;
+  workshop_hours: number;
 };
 
 export type StaffReportData = {

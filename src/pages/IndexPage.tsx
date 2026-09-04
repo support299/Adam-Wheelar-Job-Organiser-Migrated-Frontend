@@ -18,7 +18,7 @@ import {
   Plus, Pencil, Trash2, MapPin, Sparkles, Search, ArrowUp, ArrowDown,
   CalendarIcon, CalendarClock, Settings as SettingsIcon, Users, History,
   Lasso, ExternalLink, Phone, PhoneCall, PhoneForwarded, Copy, BarChart3, Clock,
-  LogOut, RefreshCw, ChevronDown, LayoutDashboard, Filter, User,
+  LogOut, RefreshCw, ChevronDown, LayoutDashboard, Filter, User, Wrench,
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -47,6 +47,7 @@ import { useListBaseLocationsQuery } from "@/api/locationsApi";
 import { useGetDistanceMatrixMutation } from "@/api/mapsApi";
 import { useCreatePlanMutation, useListPlansQuery } from "@/api/plansApi";
 import { JobFormDialog } from "@/components/jobs/JobFormDialog";
+import { AddShopTimeDialog } from "@/components/jobs/AddShopTimeDialog";
 import { ContactProfileModal } from "@/components/contacts/profile/ContactProfileModal";
 import { JobMap } from "@/components/jobs/JobMap";
 import { optimizeOrder, routeStatsForOrder } from "@/lib/directions";
@@ -1130,6 +1131,18 @@ function DailyPlanner({
   const [savingPlan, setSavingPlan] = useState(false);
   const [autoLoadedPlanId, setAutoLoadedPlanId] = useState<string | null>(null);
 
+  const [shopOpen, setShopOpen] = useState(false);
+  const [editingShopJob, setEditingShopJob] = useState<Job | null>(null);
+
+  function openJobDetails(j: Job) {
+    if (j.service_type === "workshop") {
+      setEditingShopJob(j);
+      setShopOpen(true);
+    } else {
+      onOpenJob(j);
+    }
+  }
+
   const { data: existingPlans = [] } = useListPlansQuery(
     { dateFrom: selectedDate, dateTo: selectedDate, staffId: staffFilter !== "all" ? staffFilter : undefined },
     { skip: !selectedDate },
@@ -1316,7 +1329,11 @@ function DailyPlanner({
       toast.error("Jobs from different staff members cannot be in the same plan.");
       return;
     }
-    if (hasUnassigned && staffIdSet.size > 0) {
+    if (staffIdSet.size === 0) {
+      toast.error("Assign a staff member to these jobs before saving a plan.");
+      return;
+    }
+    if (hasUnassigned) {
       toast.error("Cannot mix assigned and unassigned jobs in the same plan.");
       return;
     }
@@ -1355,7 +1372,7 @@ function DailyPlanner({
     setOrderedIds(next);
   }
 
-  const activeFilterCount = [statusFilter, dueTagFilter, staffFilter].filter((v) => v !== "all").length;
+  const activeFilterCount = [statusFilter, dueTagFilter].filter((v) => v !== "all").length;
   const allDaySelected = dayJobs.length > 0 && dayJobs.every((j) => selectedIds.has(j.id));
 
   function toggleSelectAllDay() {
@@ -1401,14 +1418,17 @@ function DailyPlanner({
             <PopoverContent align="start" className="w-64 space-y-2">
               <div className="[&>*]:w-full"><StatusFilter value={statusFilter} onChange={setStatusFilter} /></div>
               <div className="[&>*]:w-full"><DueTagFilter value={dueTagFilter} onChange={setDueTagFilter} /></div>
-              <div className="[&>*]:w-full"><StaffFilter value={staffFilter} onChange={setStaffFilter} staff={staff} /></div>
               {activeFilterCount > 0 && (
-                <Button variant="ghost" size="sm" className="w-full" onClick={() => { setStatusFilter("all"); setDueTagFilter("all"); setStaffFilter("all"); }}>
+                <Button variant="ghost" size="sm" className="w-full" onClick={() => { setStatusFilter("all"); setDueTagFilter("all"); }}>
                   Reset filters
                 </Button>
               )}
             </PopoverContent>
           </Popover>
+
+          <div className="[&>button]:h-8 [&>button]:w-auto [&>button]:text-sm">
+            <StaffFilter value={staffFilter} onChange={setStaffFilter} staff={staff} />
+          </div>
 
           <Select value={baseId || "__none"} onValueChange={(v) => setBaseId(v === "__none" ? "" : v)}>
             <SelectTrigger className="h-8 w-auto max-w-[12rem] gap-1.5 text-sm">
@@ -1548,22 +1568,32 @@ function DailyPlanner({
         )}
 
         <Card className="p-3">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-2 gap-2">
             <div className="text-xs font-semibold uppercase text-muted-foreground">
               Day jobs ({selectedJobs.length > 0 ? `${selectedJobs.length}/${dayJobs.length}` : dayJobs.length})
             </div>
-            {dayJobs.length > 0 && (
-              <label className="flex items-center gap-1.5 text-[11px] font-medium text-primary cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  className="cursor-pointer"
-                  checked={allDaySelected}
-                  ref={(el) => { if (el) el.indeterminate = selectedJobs.length > 0 && !allDaySelected; }}
-                  onChange={toggleSelectAllDay}
-                />
-                {allDaySelected ? "Clear" : "Select all"}
-              </label>
-            )}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => { setEditingShopJob(null); setShopOpen(true); }}
+                className="flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+                title="Log workshop / shop time for a staff member"
+              >
+                <Wrench className="h-3.5 w-3.5" /> Add shop
+              </button>
+              {dayJobs.length > 0 && (
+                <label className="flex items-center gap-1.5 text-[11px] font-medium text-primary cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="cursor-pointer"
+                    checked={allDaySelected}
+                    ref={(el) => { if (el) el.indeterminate = selectedJobs.length > 0 && !allDaySelected; }}
+                    onChange={toggleSelectAllDay}
+                  />
+                  {allDaySelected ? "Clear" : "Select all"}
+                </label>
+              )}
+            </div>
           </div>
           {dayJobs.length === 0 ? (
             <div className="text-xs text-muted-foreground py-4 text-center">No jobs for this date</div>
@@ -1590,18 +1620,18 @@ function DailyPlanner({
                     />
                     <button
                       type="button"
-                      onClick={(e) => { e.stopPropagation(); onOpenJob(j); }}
+                      onClick={(e) => { e.stopPropagation(); openJobDetails(j); }}
                       className="mt-0.5 shrink-0 text-muted-foreground hover:text-primary"
-                      title="Open contact details"
+                      title={j.service_type === "workshop" ? "Edit shop time" : "Open contact details"}
                     >
-                      <User className="h-3.5 w-3.5" />
+                      {j.service_type === "workshop" ? <Wrench className="h-3.5 w-3.5" /> : <User className="h-3.5 w-3.5" />}
                     </button>
                     <div className="min-w-0 flex-1">
                       <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); onOpenJob(j); }}
+                        onClick={(e) => { e.stopPropagation(); openJobDetails(j); }}
                         className="block max-w-full truncate text-left font-medium hover:underline"
-                        title="Open contact details"
+                        title={j.service_type === "workshop" ? "Edit shop time" : "Open contact details"}
                       >
                         {j.name}
                       </button>
@@ -1652,6 +1682,15 @@ function DailyPlanner({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AddShopTimeDialog
+        open={shopOpen}
+        onOpenChange={(v) => { setShopOpen(v); if (!v) setEditingShopJob(null); }}
+        job={editingShopJob}
+        defaultBaseId={baseId || undefined}
+        defaultDate={selectedDate || undefined}
+        defaultStaffId={staffFilter !== "all" && staffFilter !== "unassigned" ? staffFilter : undefined}
+      />
     </div>
   );
 }

@@ -190,6 +190,7 @@ export function ReportsPage() {
                         <th className="text-right py-2 px-2">Plans</th>
                         <th className="text-right py-2 px-2">Jobs</th>
                         <th className="text-right py-2 px-2">Completed</th>
+                        <th className="text-right py-2 px-2">Shop</th>
                         <th className="text-right py-2 px-2">Allocated km</th>
                         <th className="text-right py-2 px-2">Actual km</th>
                         <th className="text-right py-2 px-2">Service $</th>
@@ -213,6 +214,7 @@ export function ReportsPage() {
                           <td className="py-2 px-2 text-right">{r.plans_count}</td>
                           <td className="py-2 px-2 text-right">{r.jobs_count}</td>
                           <td className="py-2 px-2 text-right">{r.completed_count}</td>
+                          <td className="py-2 px-2 text-right">{r.workshop_count > 0 ? `${r.workshop_count}${r.workshop_hours > 0 ? ` · ${r.workshop_hours}h` : ""}` : "—"}</td>
                           <td className="py-2 px-2 text-right">{r.allocated_km.toFixed(1)}</td>
                           <td className="py-2 px-2 text-right">{r.actual_km.toFixed(1)}</td>
                           <td className="py-2 px-2 text-right text-emerald-600">${r.service_revenue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
@@ -245,6 +247,12 @@ export function ReportsPage() {
                 <div className="text-xs text-muted-foreground mt-1">
                   <CheckCircle2 className="h-3 w-3 inline mr-0.5 text-emerald-600" />{totals.completed_count} completed
                 </div>
+                {totals.workshop_count > 0 && (
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    <Wrench className="h-3 w-3 inline mr-0.5" />{totals.workshop_count} shop day{totals.workshop_count === 1 ? "" : "s"}
+                    {totals.workshop_hours > 0 && <> · {totals.workshop_hours}h</>}
+                  </div>
+                )}
               </Card>
               <Card className="p-4">
                 <div className="text-xs uppercase tracking-wide text-muted-foreground">Distance Travelled</div>
@@ -460,6 +468,11 @@ export function ReportsPage() {
                 <div>Plans: {staffPlans.length} · Jobs: {staffJobs.length}</div>
                 <div>Completed: {totals?.completed_count ?? 0} · Revenue: ${completedRevenue.toLocaleString()}</div>
                 <div>Distance: {(totals?.allocated_km ?? 0).toFixed(1)} km · Time: {Math.floor((totals?.allocated_min ?? 0) / 60)}h {(totals?.allocated_min ?? 0) % 60}m</div>
+                {(totals?.workshop_count ?? 0) > 0 && (
+                  <div>Shop time: {totals?.workshop_count} day{totals?.workshop_count === 1 ? "" : "s"}
+                    {(totals?.workshop_hours ?? 0) > 0 && <> · {totals?.workshop_hours}h</>}
+                  </div>
+                )}
               </div>
             </div>
             <div className="grid gap-1">
