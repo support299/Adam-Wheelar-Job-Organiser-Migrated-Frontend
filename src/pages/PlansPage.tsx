@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { ContactProfileModal } from "@/components/contacts/profile/ContactProfileModal";
+import { AddShopTimeDialog } from "@/components/jobs/AddShopTimeDialog";
+import { useJobDetailsRouting } from "@/components/jobs/useJobDetailsRouting";
 import { JOB_PROGRESS_LABELS, JOB_PROGRESS_REQUIRES_NOTES, type JobProgressStatus } from "@/lib/jobProgress";
 import { todayIso } from "@/lib/week";
 import type { RootState } from "@/store/store";
@@ -62,6 +64,7 @@ export function PlansPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [editingPlan, setEditingPlan] = useState<SavedPlan | null>(null);
   const [editingJob, setEditingJob] = useState<Job | null>(null);
+  const { shopOpen, editingShopJob, openJobDetails, onShopOpenChange } = useJobDetailsRouting((j) => setEditingJob(j));
 
   const { data: plans = [], isLoading } = useListPlansQuery({
     dateFrom,
@@ -254,7 +257,7 @@ export function PlansPage() {
                       productName={productName}
                       expanded={expanded}
                       setExpanded={setExpanded}
-                      onEditJob={setEditingJob}
+                      onEditJob={openJobDetails}
                     />
                   )}
                   {p.notes && <div className="text-xs text-muted-foreground mt-2 border-t pt-2 break-words">{p.notes}</div>}
@@ -278,6 +281,7 @@ export function PlansPage() {
         onOpenChange={(v) => { if (!v) setEditingJob(null); }}
         job={editingJob}
       />
+      <AddShopTimeDialog open={shopOpen} onOpenChange={onShopOpenChange} job={editingShopJob} />
     </div>
   );
 }

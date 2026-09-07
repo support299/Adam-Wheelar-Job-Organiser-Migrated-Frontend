@@ -288,7 +288,6 @@ export function JobFormFields({
                 <SelectItem value="installation">Installation</SelectItem>
                 <SelectItem value="servicing">Servicing</SelectItem>
                 <SelectItem value="ad_hoc">Ad-hoc</SelectItem>
-                <SelectItem value="workshop">Workshop</SelectItem>
               </SelectContent>
             </Select>
           </Field>

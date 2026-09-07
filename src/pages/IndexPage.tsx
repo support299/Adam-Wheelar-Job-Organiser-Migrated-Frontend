@@ -48,6 +48,7 @@ import { useGetDistanceMatrixMutation } from "@/api/mapsApi";
 import { useCreatePlanMutation, useListPlansQuery } from "@/api/plansApi";
 import { JobFormDialog } from "@/components/jobs/JobFormDialog";
 import { AddShopTimeDialog } from "@/components/jobs/AddShopTimeDialog";
+import { useJobDetailsRouting } from "@/components/jobs/useJobDetailsRouting";
 import { ContactProfileModal } from "@/components/contacts/profile/ContactProfileModal";
 import { JobMap } from "@/components/jobs/JobMap";
 import { optimizeOrder, routeStatsForOrder } from "@/lib/directions";
@@ -1131,17 +1132,7 @@ function DailyPlanner({
   const [savingPlan, setSavingPlan] = useState(false);
   const [autoLoadedPlanId, setAutoLoadedPlanId] = useState<string | null>(null);
 
-  const [shopOpen, setShopOpen] = useState(false);
-  const [editingShopJob, setEditingShopJob] = useState<Job | null>(null);
-
-  function openJobDetails(j: Job) {
-    if (j.service_type === "workshop") {
-      setEditingShopJob(j);
-      setShopOpen(true);
-    } else {
-      onOpenJob(j);
-    }
-  }
+  const { shopOpen, editingShopJob, openJobDetails, openNewShop, onShopOpenChange } = useJobDetailsRouting(onOpenJob);
 
   const { data: existingPlans = [] } = useListPlansQuery(
     { dateFrom: selectedDate, dateTo: selectedDate, staffId: staffFilter !== "all" ? staffFilter : undefined },
@@ -1575,7 +1566,7 @@ function DailyPlanner({
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => { setEditingShopJob(null); setShopOpen(true); }}
+                onClick={openNewShop}
                 className="flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
                 title="Log workshop / shop time for a staff member"
               >
@@ -1685,7 +1676,7 @@ function DailyPlanner({
 
       <AddShopTimeDialog
         open={shopOpen}
-        onOpenChange={(v) => { setShopOpen(v); if (!v) setEditingShopJob(null); }}
+        onOpenChange={onShopOpenChange}
         job={editingShopJob}
         defaultBaseId={baseId || undefined}
         defaultDate={selectedDate || undefined}
@@ -1710,6 +1701,9 @@ export function IndexPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Job | null>(null);
+  const { shopOpen, editingShopJob, openJobDetails, onShopOpenChange } = useJobDetailsRouting(
+    (j) => { setEditing(j); setDialogOpen(true); },
+  );
   const [search, setSearch] = useState("");
   const [dateFilter, setDateFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -2001,7 +1995,7 @@ export function IndexPage() {
                               <ExternalLink className="h-4 w-4" />
                             </Button>
                           )}
-                          <Button size="icon" variant="ghost" onClick={() => { setEditing(job); setDialogOpen(true); }}>
+                          <Button size="icon" variant="ghost" onClick={() => openJobDetails(job)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
                           <Button size="icon" variant="ghost" onClick={() => handleDelete(job.id)}>
@@ -2100,6 +2094,12 @@ export function IndexPage() {
         onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditing(null); }}
         job={editing}
         onSaved={() => void refetchJobsPage()}
+      />
+      <AddShopTimeDialog
+        open={shopOpen}
+        onOpenChange={onShopOpenChange}
+        job={editingShopJob}
+        onAdded={() => void refetchJobsPage()}
       />
     </div>
   );

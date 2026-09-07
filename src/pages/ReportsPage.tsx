@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { currentWeekRange } from "@/lib/week";
 import { ContactProfileModal } from "@/components/contacts/profile/ContactProfileModal";
+import { AddShopTimeDialog } from "@/components/jobs/AddShopTimeDialog";
 import { useListStaffQuery } from "@/api/staffApi";
 import { useGetJobQuery } from "@/api/jobsApi";
 import { useGetStaffReportQuery, useGetStaffReportSummaryQuery } from "@/api/dashboardApi";
@@ -59,6 +60,7 @@ export function ReportsPage() {
   const [payoutNotes, setPayoutNotes] = useState("");
   const [savingPayout, setSavingPayout] = useState(false);
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
+  const [editingShopJobId, setEditingShopJobId] = useState<string | null>(null);
 
   const isSingleStaff = !!selectedStaff && selectedStaff !== ALL_STAFF;
 
@@ -75,6 +77,12 @@ export function ReportsPage() {
   const summaryRows = summary?.staff ?? [];
 
   const { data: editingJobData } = useGetJobQuery(editingJobId ?? skipToken);
+  const { data: editingShopJobData } = useGetJobQuery(editingShopJobId ?? skipToken);
+
+  function openJobDetails(j: { id: string; service_type: string }) {
+    if (j.service_type === "workshop") setEditingShopJobId(j.id);
+    else setEditingJobId(j.id);
+  }
 
   const selectedStaffName = staff.find((s) => s.id === selectedStaff)?.name ?? "Select staff";
   const staffPayouts = payouts.filter((p) => p.staff_id === selectedStaff);
@@ -387,7 +395,7 @@ export function ReportsPage() {
                             <td className="py-2 px-2 text-right">{j.actual_km != null ? j.actual_km.toFixed(1) : "—"}</td>
                             <td className="py-2 px-2 text-right">{j.travel_min != null ? j.travel_min : "—"}</td>
                             <td className="py-2 px-2 text-right">
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingJobId(j.id)} title="Edit job">
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openJobDetails(j)} title="Edit job">
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
                             </td>
@@ -495,6 +503,11 @@ export function ReportsPage() {
         open={!!editingJobId}
         onOpenChange={(v) => { if (!v) setEditingJobId(null); }}
         job={editingJobData ?? null}
+      />
+      <AddShopTimeDialog
+        open={!!editingShopJobId}
+        onOpenChange={(v) => { if (!v) setEditingShopJobId(null); }}
+        job={editingShopJobData ?? null}
       />
     </div>
   );

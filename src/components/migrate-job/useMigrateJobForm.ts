@@ -43,7 +43,7 @@ export type UseMigrateJobFormParams = {
   open: boolean;
   job?: Job | null;
   defaultGhlContactId?: string | null;
-  defaultServiceType?: "installation" | "servicing" | "ad_hoc" | "workshop";
+  defaultServiceType?: "installation" | "servicing" | "ad_hoc";
   initialTab?: "details" | "activity";
   initialValues?: Partial<JobInsert>;
   initialStaffIds?: string[];

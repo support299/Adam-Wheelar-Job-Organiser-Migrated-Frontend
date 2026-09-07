@@ -12,6 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Mail, Phone, MapPin, Plus, CalendarClock, Users, Package, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { JobFormDialog } from "@/components/jobs/JobFormDialog";
+import { AddShopTimeDialog } from "@/components/jobs/AddShopTimeDialog";
+import { useJobDetailsRouting } from "@/components/jobs/useJobDetailsRouting";
 import { ContactProfileModal } from "@/components/contacts/profile/ContactProfileModal";
 import { PurchasesAddresses } from "@/components/contacts/PurchasesAddresses";
 import { ContactActivity } from "@/components/contacts/ContactActivity";
@@ -58,6 +60,9 @@ export function ContactJobsPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Job | null>(null);
+  const { shopOpen, editingShopJob, openJobDetails, onShopOpenChange } = useJobDetailsRouting(
+    (j) => { setEditing(j); setDialogOpen(true); },
+  );
   const [statusFilter, setStatusFilter] = useState("all");
   const [staffFilter, setStaffFilter] = useState("all");
   const [dueTagFilter, setDueTagFilter] = useState("all");
@@ -281,7 +286,7 @@ export function ContactJobsPage() {
                           )}
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
-                          <Button variant="ghost" size="icon" onClick={() => { setEditing(job); setDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" onClick={() => openJobDetails(job)}><Pencil className="h-4 w-4" /></Button>
                           <Button variant="ghost" size="icon" onClick={() => handleDelete(job.id)}><Trash2 className="h-4 w-4 text-red-600" /></Button>
                         </div>
                       </div>
@@ -304,7 +309,7 @@ export function ContactJobsPage() {
             <ContactActivity
               contactKey={contactKey}
               jobs={jobs}
-              onOpenJob={(j) => { setEditing(j); setDialogOpen(true); }}
+              onOpenJob={openJobDetails}
             />
           </TabsContent>
         </Tabs>
@@ -322,6 +327,7 @@ export function ContactJobsPage() {
         onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditing(null); }}
         job={editing}
       />
+      <AddShopTimeDialog open={shopOpen} onOpenChange={onShopOpenChange} job={editingShopJob} />
     </div>
   );
 }
