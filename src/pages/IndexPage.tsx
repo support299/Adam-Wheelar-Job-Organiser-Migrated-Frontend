@@ -116,6 +116,18 @@ function isoDate(d: Date) {
 function sameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
+
+// ─── sparse-fieldset job lists ──────────────────────────────────────────────
+// The Daily Planner and Map View pull a lot of rows but render only a few
+// columns, so they request a trimmed payload (?fields=). Anything the edit
+// dialogs need beyond this is fetched per-id when a job is opened.
+const PLANNER_JOB_FIELDS =
+  "id,name,address,lat,lng,service_date,service_time,service_type,status,staff_ids";
+const MAP_JOB_FIELDS =
+  "id,name,email,phone,address,lat,lng,service_value,service_time,service_date,service_type,status,call_status,calls_made,ghl_contact_id,last_call_at,staff_ids";
+// Daily Planner load window, relative to today.
+const PLANNER_WINDOW_BACK_DAYS = 30;
+const PLANNER_WINDOW_FWD_DAYS = 90;
 const CAL_HOURS = Array.from({ length: 16 }, (_, i) => i + 6);
 function parseHour(time: string): number {
   const n = parseInt(time.slice(0, 2), 10);
@@ -1099,22 +1111,46 @@ function MapViewPanel({
 // ─── DailyPlanner ────────────────────────────────────────────────────────────
 
 function DailyPlanner({
-  jobs,
+  jobs: windowJobs,
   staff,
-  jobStaffMap,
+  jobStaffMap: windowStaffMap,
+  windowFrom,
+  windowTo,
   onOpenJob,
 }: {
   jobs: Job[];
   staff: Staff[];
   jobStaffMap: Record<string, string[]>;
+  windowFrom: string;
+  windowTo: string;
   onOpenJob: (job: Job) => void;
 }) {
   const { data: bases = [] } = useListBaseLocationsQuery();
   const [getDistanceMatrix] = useGetDistanceMatrixMutation();
   const [createPlan] = useCreatePlanMutation();
 
-  const dates = useMemo(() => Array.from(new Set(jobs.map((j) => j.service_date))).sort(), [jobs]);
   const [selectedDate, setSelectedDate] = useState<string>("");
+
+  // The planner preloads a window around today. If the user navigates the
+  // calendar to a day outside it, fetch just that day on demand and merge it in.
+  const outOfWindow = !!selectedDate && (selectedDate < windowFrom || selectedDate > windowTo);
+  const { data: extraDayJobs = [] } = useListJobsQuery(
+    { dateFrom: selectedDate, dateTo: selectedDate, fields: PLANNER_JOB_FIELDS },
+    { skip: !outOfWindow, pollingInterval: 60_000, skipPollingIfUnfocused: true },
+  );
+
+  const jobs = useMemo(
+    () => (outOfWindow && extraDayJobs.length ? [...windowJobs, ...extraDayJobs] : windowJobs),
+    [windowJobs, extraDayJobs, outOfWindow],
+  );
+  const jobStaffMap = useMemo(() => {
+    if (!outOfWindow || !extraDayJobs.length) return windowStaffMap;
+    const m: Record<string, string[]> = { ...windowStaffMap };
+    for (const j of extraDayJobs) if (j.staff_ids?.length) m[j.id] = j.staff_ids;
+    return m;
+  }, [windowStaffMap, extraDayJobs, outOfWindow]);
+
+  const dates = useMemo(() => Array.from(new Set(jobs.map((j) => j.service_date))).sort(), [jobs]);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dueTagFilter, setDueTagFilter] = useState<string>("all");
   const [staffFilter, setStaffFilter] = useState<string>("all");
@@ -1730,16 +1766,24 @@ export function IndexPage() {
   const [mapCallsMin, setMapCallsMin] = useState("");
   const [mapCallsMax, setMapCallsMax] = useState("");
 
-  // Map View fetches only the visible date window; Daily Planner fetches all jobs.
+  // Both tabs fetch only a bounded date window with a trimmed column set.
+  // Map View uses the visible date pickers; the Daily Planner uses a window
+  // around today (see PLANNER_WINDOW_* constants).
   const { data: mapJobs = [] } = useListJobsQuery(
-    { dateFrom: mapDateFrom || undefined, dateTo: mapDateTo || undefined },
+    { dateFrom: mapDateFrom || undefined, dateTo: mapDateTo || undefined, fields: MAP_JOB_FIELDS },
     { skip: activeMainTab !== "map", pollingInterval: 60_000, skipPollingIfUnfocused: true },
   );
-  const { data: plannerJobs = [] } = useListJobsQuery(undefined, {
-    skip: activeMainTab !== "planner",
-    pollingInterval: 60_000,
-    skipPollingIfUnfocused: true,
-  });
+  const plannerWindow = useMemo(() => {
+    const today = new Date();
+    return {
+      from: isoDate(addDays(today, -PLANNER_WINDOW_BACK_DAYS)),
+      to: isoDate(addDays(today, PLANNER_WINDOW_FWD_DAYS)),
+    };
+  }, []);
+  const { data: plannerJobs = [] } = useListJobsQuery(
+    { dateFrom: plannerWindow.from, dateTo: plannerWindow.to, fields: PLANNER_JOB_FIELDS },
+    { skip: activeMainTab !== "planner", pollingInterval: 60_000, skipPollingIfUnfocused: true },
+  );
 
   // Reset to the first page whenever the Jobs List filters change.
   useEffect(() => {
@@ -2076,6 +2120,8 @@ export function IndexPage() {
               jobs={plannerJobs}
               staff={staff}
               jobStaffMap={jobStaffMap}
+              windowFrom={plannerWindow.from}
+              windowTo={plannerWindow.to}
               onOpenJob={(j) => { setEditing(j); setDialogOpen(true); }}
             />
           </TabsContent>

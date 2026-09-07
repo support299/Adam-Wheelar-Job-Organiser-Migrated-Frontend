@@ -5,7 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useListJobsQuery } from "@/api/jobsApi";
+import { useGetJobQuery, useListJobsQuery } from "@/api/jobsApi";
 import { ContactProfileSidebar } from "@/components/contacts/profile/ContactProfileSidebar";
 import { JobEditorPane } from "@/components/contacts/profile/JobEditorPane";
 import { ContactNotesList } from "@/components/contacts/profile/ContactNotesList";
@@ -23,10 +23,22 @@ type Props = {
 };
 
 export function ContactProfileModal({ open, onOpenChange, job, onSaved }: Props) {
-  const filter = job?.ghl_contact_id
-    ? { ghl_contact_id: job.ghl_contact_id }
-    : job?.email
-    ? { email: job.email }
+  // The job passed in may be a trimmed row (Daily Planner / Map View request a
+  // sparse fieldset). Fetch the complete record before editing so JobEditorPane
+  // — which snapshots every field from props on mount — seeds correctly.
+  const { data: fetchedFull, isError: fullJobError } = useGetJobQuery(job?.id ?? "", {
+    skip: !open || !job?.id,
+  });
+  // Fall back to the passed-in row if the per-id fetch fails, so the modal is
+  // never permanently stuck loading.
+  const fullJob = fetchedFull ?? (fullJobError ? job ?? undefined : undefined);
+  const clickedJob = fullJob ?? job;
+  const loadingClickedJob = !!job && !fullJob;
+
+  const filter = clickedJob?.ghl_contact_id
+    ? { ghl_contact_id: clickedJob.ghl_contact_id }
+    : clickedJob?.email
+    ? { email: clickedJob.email }
     : undefined;
 
   const { data: fetchedJobs = [], isLoading } = useListJobsQuery(filter, {
@@ -41,14 +53,14 @@ export function ContactProfileModal({ open, onOpenChange, job, onSaved }: Props)
     if (job) setSelectedJobId(job.id);
   }, [job]);
 
-  // Always include the clicked job even if the contact fetch hasn't landed yet
-  // or keys by a field the list filter missed.
+  // Only surface fully-loaded jobs. Include the clicked job from its own fetch
+  // in case the contact list hasn't landed yet or keys by a field it missed.
   const jobs = useMemo(() => {
-    if (!job) return fetchedJobs;
-    return fetchedJobs.some((j) => j.id === job.id) ? fetchedJobs : [job, ...fetchedJobs];
-  }, [fetchedJobs, job]);
+    if (!fullJob) return fetchedJobs;
+    return fetchedJobs.some((j) => j.id === fullJob.id) ? fetchedJobs : [fullJob, ...fetchedJobs];
+  }, [fetchedJobs, fullJob]);
 
-  const selectedJob = jobs.find((j) => j.id === selectedJobId) ?? job ?? null;
+  const selectedJob = jobs.find((j) => j.id === selectedJobId) ?? null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -84,7 +96,7 @@ export function ContactProfileModal({ open, onOpenChange, job, onSaved }: Props)
               <ContactNotesList contactFilter={filter} />
             ) : !selectedJob ? (
               <div className="flex-1 grid place-items-center text-sm text-muted-foreground">
-                {isLoading ? "Loading…" : "Select a job"}
+                {isLoading || loadingClickedJob ? "Loading…" : "Select a job"}
               </div>
             ) : (
               <JobEditorPane

@@ -20,7 +20,7 @@ export type ListJobsPagedArgs = {
 
 export const jobsApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
-    listJobs: build.query<Job[], { ghl_contact_id?: string; email?: string; search?: string; dateFrom?: string; dateTo?: string } | void>({
+    listJobs: build.query<Job[], { ghl_contact_id?: string; email?: string; search?: string; dateFrom?: string; dateTo?: string; fields?: string } | void>({
       query: (args) => {
         const params = new URLSearchParams({ ordering: "service_date,service_time" });
         if (args?.ghl_contact_id) params.set("ghl_contact_id", args.ghl_contact_id);
@@ -28,6 +28,9 @@ export const jobsApi = baseApi.injectEndpoints({
         if (args?.search) params.set("search", args.search);
         if (args?.dateFrom) params.set("service_date_from", args.dateFrom);
         if (args?.dateTo) params.set("service_date_to", args.dateTo);
+        // Sparse fieldset — callers that only need a few columns (Daily Planner,
+        // Map View) pass this to keep the payload small.
+        if (args?.fields) params.set("fields", args.fields);
         return `/jobs/?${params.toString()}`;
       },
       providesTags: (result) =>

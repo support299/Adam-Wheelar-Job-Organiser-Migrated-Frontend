@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useListStaffQuery } from "@/api/staffApi";
 import { useListBaseLocationsQuery } from "@/api/locationsApi";
-import { useCreateJobMutation, useUpdateJobMutation, useGetJobStaffQuery, useSetJobStaffMutation } from "@/api/jobsApi";
+import { useCreateJobMutation, useUpdateJobMutation, useGetJobQuery, useGetJobStaffQuery, useSetJobStaffMutation } from "@/api/jobsApi";
 import { emptyJobForm } from "@/components/jobs/useJobForm";
 import { DURATION_OPTIONS, durationLabel, STATUS_OPTIONS } from "@/components/jobs/jobFieldOptions";
 import type { Job } from "@/api/types";
@@ -55,6 +55,14 @@ export function AddShopTimeDialog({
   const isEditing = !!job;
   const { data: bases = [] } = useListBaseLocationsQuery();
   const { data: staff = [] } = useListStaffQuery();
+  // The job may arrive as a trimmed row (Daily Planner sparse fieldset). Fetch
+  // the full record so duration / service_value / notes seed from real values.
+  const { data: fetchedFull, isError: fullJobError } = useGetJobQuery(job?.id ?? "", {
+    skip: !open || !job?.id,
+  });
+  // Fall back to the passed row if the per-id fetch fails, so save isn't blocked.
+  const fullJob = fetchedFull ?? (fullJobError ? job ?? undefined : undefined);
+  const jobDetailsPending = !!job && !fullJob;
   const { data: existingStaff } = useGetJobStaffQuery(job?.id ?? "", { skip: !open || !job });
   const [createJob] = useCreateJobMutation();
   const [updateJob] = useUpdateJobMutation();
@@ -75,13 +83,14 @@ export function AddShopTimeDialog({
   useEffect(() => {
     if (!open) return;
     if (job) {
-      setBaseId(bases.find((b) => b.lat === job.lat && b.lng === job.lng)?.id ?? "");
-      setDate(job.service_date);
-      setTime(job.service_time.slice(0, 5));
-      setDuration(job.duration ?? 60);
-      setStatus(job.status);
-      setServiceValue(String(job.service_value ?? 0));
-      setNotes(job.notes ?? "");
+      if (!fullJob) return; // wait for the complete record before seeding
+      setBaseId(bases.find((b) => b.lat === fullJob.lat && b.lng === fullJob.lng)?.id ?? "");
+      setDate(fullJob.service_date);
+      setTime(fullJob.service_time.slice(0, 5));
+      setDuration(fullJob.duration ?? 60);
+      setStatus(fullJob.status);
+      setServiceValue(String(fullJob.service_value ?? 0));
+      setNotes(fullJob.notes ?? "");
       setStaffId("");
     } else {
       setBaseId(defaultBaseId || bases[0]?.id || "");
@@ -94,7 +103,7 @@ export function AddShopTimeDialog({
       setNotes("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, job]);
+  }, [open, job, fullJob]);
 
   // Existing staff assignment loads separately (own query) — sync once it arrives.
   useEffect(() => {
@@ -102,6 +111,7 @@ export function AddShopTimeDialog({
   }, [open, job, existingStaff]);
 
   async function handleSave() {
+    if (jobDetailsPending) { toast.error("Still loading this entry — try again in a moment"); return; }
     if (!date) { toast.error("Pick a date"); return; }
     if (!base) { toast.error("Select the workshop (base location)"); return; }
     if (!staffId) { toast.error("Select a staff member"); return; }
@@ -229,7 +239,7 @@ export function AddShopTimeDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSave} disabled={saving || !base || !staffId || !date}>
+          <Button onClick={handleSave} disabled={saving || jobDetailsPending || !base || !staffId || !date}>
             {saving ? (isEditing ? "Saving…" : "Adding…") : (isEditing ? "Save changes" : "Add shop time")}
           </Button>
         </DialogFooter>
