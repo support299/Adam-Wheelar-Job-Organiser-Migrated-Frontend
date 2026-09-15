@@ -1,6 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
+import { useLiveQuery } from "dexie-react-hooks";
+import {
+  getCachedPlans, getCachedStaff, getCachedProducts, getCachedJobProducts, getCachedBaseLocations,
+  getLastFetchedAt,
+} from "@/db/dexie";
 import { clearCredentials, selectIsAdmin, selectStaffId } from "@/store/authSlice";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,7 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   MapPin, Trash2, Users, CalendarClock, Phone, Navigation, Mail,
-  Package, ChevronDown, ChevronRight, Pencil, ArrowUp, ArrowDown, X, LogOut, Home, Download,
+  Package, ChevronDown, ChevronRight, Pencil, ArrowUp, ArrowDown, X, LogOut, Home, Download, RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ContactProfileModal } from "@/components/contacts/profile/ContactProfileModal";
@@ -66,15 +71,72 @@ export function PlansPage() {
   const [editingJob, setEditingJob] = useState<Job | null>(null);
   const { shopOpen, editingShopJob, openJobDetails, onShopOpenChange } = useJobDetailsRouting((j) => setEditingJob(j));
 
-  const { data: plans = [], isLoading } = useListPlansQuery({
+  const resolvedStaffFilter = staffFilter !== "all" ? staffFilter : undefined;
+
+  // Each pair below is: live network data (RTK Query) with a Dexie-cached
+  // fallback underneath, so the page paints from IndexedDB immediately on a
+  // cold load and keeps working if the network request fails (offline).
+  // The network response, once it lands, both updates Redux state here and
+  // is persisted back into Dexie by each endpoint's onQueryStarted hook.
+  const {
+    data: plansFromApi, isLoading: plansLoading, isFetching: plansFetching,
+    isError: plansIsError, refetch: refetchPlans,
+  } = useListPlansQuery({
     dateFrom,
     dateTo,
-    staffId: staffFilter !== "all" ? staffFilter : undefined,
+    staffId: resolvedStaffFilter,
   });
-  const { data: staff = [] } = useListStaffQuery();
-  const { data: products = [] } = useListProductsQuery();
-  const { data: allJobProducts = [] } = useListAllJobProductsQuery();
-  const { data: bases = [] } = useListBaseLocationsQuery();
+  const cachedPlans = useLiveQuery(
+    () => getCachedPlans(dateFrom, dateTo, resolvedStaffFilter),
+    [dateFrom, dateTo, resolvedStaffFilter],
+  );
+  const plans = plansFromApi ?? cachedPlans ?? [];
+  const isLoading = plansLoading && cachedPlans === undefined;
+  const lastFetchedAt = useLiveQuery(() => getLastFetchedAt("plans"), []);
+
+  // Remember the last filter combination that actually got a live response,
+  // so a failed refresh (offline / server unreachable) can snap the filter
+  // controls back to it instead of leaving them pointed at a range that
+  // never loaded.
+  const lastGoodFiltersRef = useRef({ dateFrom, dateTo, staffFilter });
+  useEffect(() => {
+    if (plansFromApi) {
+      lastGoodFiltersRef.current = { dateFrom, dateTo, staffFilter };
+    }
+  }, [plansFromApi, dateFrom, dateTo, staffFilter]);
+
+  useEffect(() => {
+    if (!plansIsError) return;
+    const last = lastGoodFiltersRef.current;
+    const filtersChanged = last.dateFrom !== dateFrom || last.dateTo !== dateTo || last.staffFilter !== staffFilter;
+    if (filtersChanged) {
+      toast.error("Couldn't reach the server with those filters — reverted to the last loaded view");
+      setDateFrom(last.dateFrom);
+      setDateTo(last.dateTo);
+      setStaffFilter(last.staffFilter);
+    } else {
+      toast.error("Couldn't reach the server. Check your connection.");
+    }
+    // Only re-run when the error itself (re)appears, not on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plansIsError]);
+
+  const { data: staffFromApi } = useListStaffQuery();
+  const cachedStaff = useLiveQuery(() => getCachedStaff(), []);
+  const staff = staffFromApi ?? cachedStaff ?? [];
+
+  const { data: productsFromApi } = useListProductsQuery();
+  const cachedProducts = useLiveQuery(() => getCachedProducts(), []);
+  const products = productsFromApi ?? cachedProducts ?? [];
+
+  const { data: allJobProductsFromApi } = useListAllJobProductsQuery();
+  const cachedJobProducts = useLiveQuery(() => getCachedJobProducts(), []);
+  const allJobProducts = allJobProductsFromApi ?? cachedJobProducts ?? [];
+
+  const { data: basesFromApi } = useListBaseLocationsQuery();
+  const cachedBases = useLiveQuery(() => getCachedBaseLocations(), []);
+  const bases = basesFromApi ?? cachedBases ?? [];
+
   const [deletePlan] = useDeletePlanMutation();
 
   const jobProductsMap = useMemo(() => {
@@ -159,6 +221,21 @@ export function PlansPage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-2 sm:px-4 py-3 sm:py-6 space-y-3 sm:space-y-4">
+        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+          <span>
+            {lastFetchedAt
+              ? `Last updated: ${new Date(lastFetchedAt).toLocaleString()}`
+              : "Not yet synced"}
+          </span>
+          <Button
+            variant="ghost" size="sm" className="h-7 px-2 cursor-pointer"
+            onClick={() => refetchPlans()} disabled={plansFetching}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 mr-1 ${plansFetching ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
+
         <Card className="p-3 grid gap-2 sm:gap-3 grid-cols-1 min-[380px]:grid-cols-2 sm:grid-cols-4">
           <div className="grid gap-1 min-w-0">
             <Label className="text-xs">From</Label>

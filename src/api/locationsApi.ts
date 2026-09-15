@@ -1,4 +1,5 @@
 import { baseApi } from "./baseApi";
+import { db } from "@/db/dexie";
 import type { BaseLocation, BaseLocationInsert, BaseLocationUpdate } from "./types";
 
 export const locationsApi = baseApi.injectEndpoints({
@@ -9,6 +10,12 @@ export const locationsApi = baseApi.injectEndpoints({
         result
           ? [...result.map(({ id }) => ({ type: "Location" as const, id })), { type: "Location", id: "LIST" }]
           : [{ type: "Location", id: "LIST" }],
+      async onQueryStarted(_arg, { queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          if (data.length) await db.baseLocations.bulkPut(data);
+        } catch { /* offline or request failed — keep whatever is already cached */ }
+      },
     }),
     createBaseLocation: build.mutation<BaseLocation, BaseLocationInsert>({
       query: (body) => ({ url: "/locations/", method: "POST", body }),

@@ -1,4 +1,5 @@
 import { baseApi } from "./baseApi";
+import { db } from "@/db/dexie";
 import type { Staff, StaffInsert, StaffUpdate } from "./types";
 
 export const staffApi = baseApi.injectEndpoints({
@@ -9,6 +10,12 @@ export const staffApi = baseApi.injectEndpoints({
         result
           ? [...result.map(({ id }) => ({ type: "Staff" as const, id })), { type: "Staff", id: "LIST" }]
           : [{ type: "Staff", id: "LIST" }],
+      async onQueryStarted(_arg, { queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          if (data.length) await db.staff.bulkPut(data);
+        } catch { /* offline or request failed — keep whatever is already cached */ }
+      },
     }),
     createStaff: build.mutation<Staff, StaffInsert>({
       query: (body) => ({ url: "/staff/", method: "POST", body }),

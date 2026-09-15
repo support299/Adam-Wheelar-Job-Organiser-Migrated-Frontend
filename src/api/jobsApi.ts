@@ -1,4 +1,5 @@
 import { baseApi } from "./baseApi";
+import { db } from "@/db/dexie";
 import type { Job, JobInsert, JobUpdate, JobProduct, JobProductLine, PurchaseHistoryRow } from "./types";
 
 export type Paginated<T> = {
@@ -83,6 +84,16 @@ export const jobsApi = baseApi.injectEndpoints({
         params: params ?? {},
       }),
       providesTags: [{ type: "Job", id: "ALL-PRODUCTS" }],
+      async onQueryStarted(arg, { queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          // Only cache the unfiltered fetch (PlansPage's call) — a filtered
+          // one (e.g. by ghl_contact_id) is a subset and would leave stale
+          // rows in place for jobs outside that filter, which is fine since
+          // bulkPut never deletes, but skip it to avoid confusing partial writes.
+          if (!arg && data.length) await db.jobProducts.bulkPut(data);
+        } catch { /* offline or request failed — keep whatever is already cached */ }
+      },
     }),
     setJobProducts: build.mutation<void, { jobId: string; lines: JobProductLine[] }>({
       query: ({ jobId, lines }) => ({

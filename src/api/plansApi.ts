@@ -1,4 +1,5 @@
 import { baseApi } from "./baseApi";
+import { db, setLastFetchedAt } from "@/db/dexie";
 import type { SavedPlan, SavedPlanInsert, SavedPlanUpdate, JobProgress } from "./types";
 
 export const plansApi = baseApi.injectEndpoints({
@@ -15,6 +16,13 @@ export const plansApi = baseApi.injectEndpoints({
         result
           ? [...result.map(({ id }) => ({ type: "Plan" as const, id })), { type: "Plan", id: "LIST" }]
           : [{ type: "Plan", id: "LIST" }],
+      async onQueryStarted(_arg, { queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          if (data.length) await db.plans.bulkPut(data);
+          await setLastFetchedAt("plans", new Date().toISOString());
+        } catch { /* offline or request failed — keep whatever is already cached */ }
+      },
     }),
     createPlan: build.mutation<SavedPlan, SavedPlanInsert>({
       query: (body) => ({ url: "/plans/", method: "POST", body }),
