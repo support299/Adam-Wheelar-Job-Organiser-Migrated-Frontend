@@ -105,17 +105,26 @@ export function PlansPage() {
     }
   }, [plansFromApi, dateFrom, dateTo, staffFilter]);
 
+  const showDismissibleError = (message: string) => {
+    let id: string | number;
+    id = toast.error(
+      <span className="w-full cursor-pointer" onClick={() => toast.dismiss(id)}>
+        {message}
+      </span>,
+    );
+  };
+
   useEffect(() => {
     if (!plansIsError) return;
     const last = lastGoodFiltersRef.current;
     const filtersChanged = last.dateFrom !== dateFrom || last.dateTo !== dateTo || last.staffFilter !== staffFilter;
     if (filtersChanged) {
-      toast.error("Couldn't reach the server with those filters — reverted to the last loaded view");
+      showDismissibleError("Couldn't reach the server with those filters — reverted to the last loaded view");
       setDateFrom(last.dateFrom);
       setDateTo(last.dateTo);
       setStaffFilter(last.staffFilter);
     } else {
-      toast.error("Couldn't reach the server. Check your connection.");
+      showDismissibleError("Couldn't reach the server. Check your connection.");
     }
     // Only re-run when the error itself (re)appears, not on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
