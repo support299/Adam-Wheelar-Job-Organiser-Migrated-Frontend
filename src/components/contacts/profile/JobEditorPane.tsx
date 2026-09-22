@@ -33,6 +33,7 @@ import { AddressAutocomplete } from "@/components/jobs/AddressAutocomplete";
 import { ActivityCombobox } from "@/components/jobs/ActivityCombobox";
 import { Section, Field } from "@/components/jobs/formLayout";
 import { JobCallLog } from "@/components/contacts/profile/JobCallLog";
+import { JobAttachments } from "@/components/contacts/profile/JobAttachments";
 import {
   DURATION_OPTIONS,
   durationLabel,
@@ -601,6 +602,9 @@ export function JobEditorPane({ job, onSaved }: Props) {
 
         {/* Call log */}
         <JobCallLog jobId={job.id} />
+
+        {/* Attachments */}
+        <JobAttachments jobId={job.id} />
       </div>
 
       {error && (
