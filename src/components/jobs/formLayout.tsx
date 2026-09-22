@@ -29,13 +29,24 @@ export function Field({
   );
 }
 
-/** A titled group of related fields. */
-export function Section({ title, children }: { title: string; children: ReactNode }) {
+/** A titled group of related fields, with an optional action (e.g. a button) beside the title. */
+export function Section({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <section className="space-y-3">
-      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        {title}
-      </h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {title}
+        </h3>
+        {action}
+      </div>
       {children}
     </section>
   );

@@ -20,7 +20,19 @@ export const jobAttachmentsApi = baseApi.injectEndpoints({
           ? [...result.map((a) => ({ type: "JobAttachment" as const, id: a.id })), listTag(jobId)]
           : [listTag(jobId)],
     }),
+    // Uploads the file to GHL's media library and records the returned url
+    // against the job (see apps.ghl.views.GhlUploadFileView on the backend).
+    uploadJobAttachment: build.mutation<JobAttachment, { job: string; file: File }>({
+      query: ({ job, file }) => {
+        const body = new FormData();
+        body.append("job_id", job);
+        body.append("name", file.name);
+        body.append("file", file);
+        return { url: "/ghl/upload-file/", method: "POST", body };
+      },
+      invalidatesTags: (_r, _e, { job }) => [listTag(job)],
+    }),
   }),
 });
 
-export const { useListJobAttachmentsQuery } = jobAttachmentsApi;
+export const { useListJobAttachmentsQuery, useUploadJobAttachmentMutation } = jobAttachmentsApi;
