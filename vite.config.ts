@@ -32,6 +32,13 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // jsPDF lazily imports these for doc.html()/SVG, which the field forms
+      // never use — they draw via explicit primitives (src/lib/fieldForms/pdf).
+      // Left in, the service worker precaches ~377KB onto every phone for code
+      // that never runs. Remove these three if jsPDF's HTML path is ever needed.
+      html2canvas: path.resolve(__dirname, "./src/lib/fieldForms/pdf/emptyModule.ts"),
+      dompurify: path.resolve(__dirname, "./src/lib/fieldForms/pdf/emptyModule.ts"),
+      canvg: path.resolve(__dirname, "./src/lib/fieldForms/pdf/emptyModule.ts"),
     },
   },
 });

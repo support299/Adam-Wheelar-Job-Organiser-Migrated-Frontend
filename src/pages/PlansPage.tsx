@@ -23,9 +23,12 @@ import {
 import {
   MapPin, Trash2, Users, CalendarClock, Phone, Navigation, Mail,
   Package, ChevronDown, ChevronRight, Pencil, ArrowUp, ArrowDown, X, LogOut, Home, Download, RefreshCw,
+  ClipboardCheck, ClipboardList,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ContactProfileModal } from "@/components/contacts/profile/ContactProfileModal";
+import { PendingUploadsCard } from "@/components/field-forms/PendingUploadsCard";
+import { JobUploadBadge } from "@/components/field-forms/JobUploadBadge";
 import { AddShopTimeDialog } from "@/components/jobs/AddShopTimeDialog";
 import { useJobDetailsRouting } from "@/components/jobs/useJobDetailsRouting";
 import { JOB_PROGRESS_LABELS, JOB_PROGRESS_REQUIRES_NOTES, type JobProgressStatus } from "@/lib/jobProgress";
@@ -230,6 +233,7 @@ export function PlansPage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-2 sm:px-4 py-3 sm:py-6 space-y-3 sm:space-y-4">
+        <PendingUploadsCard />
         <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
           <span>
             {lastFetchedAt
@@ -372,6 +376,48 @@ export function PlansPage() {
   );
 }
 
+/**
+ * Launches a field form for this job. The job object is handed over in router
+ * state so the form never needs a fetch — the tech may already be offline.
+ *
+ * service_type is a loose string (it includes "ad_hoc" and "workshop"), so
+ * anything that isn't clearly one or the other offers both rather than nothing.
+ */
+function FieldFormButtons({ job }: { job: Job }) {
+  const navigate = useNavigate();
+  const type = job.service_type;
+  const showService = type !== "installation";
+  const showInstall = type !== "servicing";
+
+  const open = (formType: "service" | "install") =>
+    navigate(`/field-form/${formType}/${job.id}`, { state: { job } });
+
+  return (
+    <>
+      {showService && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full sm:w-auto justify-center"
+          onClick={() => open("service")}
+        >
+          <ClipboardCheck className="h-3 w-3 mr-1" />Service Sheet
+        </Button>
+      )}
+      {showInstall && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full sm:w-auto justify-center"
+          onClick={() => open("install")}
+        >
+          <ClipboardList className="h-3 w-3 mr-1" />Install Checklist
+        </Button>
+      )}
+    </>
+  );
+}
+
 function PlanJobList({
   planId, orderedIds, jobById, progressRows, jobProductsMap, staffName, productName,
   expanded, setExpanded, onEditJob,
@@ -446,7 +492,9 @@ function PlanJobList({
                   <Button size="sm" variant="outline" className="w-full sm:w-auto justify-center" onClick={() => onEditJob(j)}>
                     <Pencil className="h-3 w-3 mr-1" />Edit job
                   </Button>
+                  <FieldFormButtons job={j} />
                 </div>
+                <JobUploadBadge jobId={j.id} />
                 <div className="flex items-start gap-1 text-muted-foreground">
                   <MapPin className="h-3 w-3 mt-0.5 shrink-0" /><span className="break-words">{j.address}</span>
                 </div>

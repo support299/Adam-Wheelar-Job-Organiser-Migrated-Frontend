@@ -14,6 +14,8 @@ import { ContactDetailPage } from "@/pages/ContactDetailPage";
 import { ContactJobsPage } from "@/pages/ContactJobsPage";
 import { AdminMapsKeyPage } from "@/pages/AdminMapsKeyPage";
 import { MigrateJobPage } from "@/pages/MigrateJobPage";
+import { FieldFormPage } from "@/pages/FieldFormPage";
+import { OutboxRunner } from "@/components/field-forms/OutboxRunner";
 
 function HomeRoute() {
   const isAdmin = useSelector(selectIsAdmin);
@@ -25,6 +27,8 @@ export default function App() {
   return (
     <>
       <Toaster richColors position="top-right" />
+      {/* Drains the field-form upload queue on reconnect; renders nothing. */}
+      <OutboxRunner />
       <Routes>
         {/* GHL iframe route — no auth gate needed, AccessGate handles iframe detection */}
         <Route path="/contact/jobs/:ghlContactId" element={<AccessGate><ContactJobsPage /></AccessGate>} />
@@ -39,6 +43,7 @@ export default function App() {
         <Route path="/contacts" element={<AccessGate><ContactsListPage /></AccessGate>} />
         <Route path="/contacts/:contactId" element={<AccessGate><ContactDetailPage /></AccessGate>} />
         <Route path="/migrate-job" element={<AccessGate><MigrateJobPage /></AccessGate>} />
+        <Route path="/field-form/:formType/:jobId" element={<AccessGate><FieldFormPage /></AccessGate>} />
         <Route path="/admin/maps-key" element={<AdminMapsKeyPage />} />
       </Routes>
     </>

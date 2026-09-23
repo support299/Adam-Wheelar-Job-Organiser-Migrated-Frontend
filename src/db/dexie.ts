@@ -1,5 +1,6 @@
 import Dexie, { type Table } from "dexie";
-import type { SavedPlan, Staff, Product, JobProduct, BaseLocation } from "@/api/types";
+import type { Job, SavedPlan, Staff, Product, JobProduct, BaseLocation } from "@/api/types";
+import type { FieldFormDraft, FieldFormPhoto, FieldFormOutboxItem } from "@/lib/fieldForms/types";
 
 /**
  * IndexedDB mirror of the read-only reference data PlansPage needs, so the
@@ -8,6 +9,10 @@ import type { SavedPlan, Staff, Product, JobProduct, BaseLocation } from "@/api/
  * write into these tables on every successful fetch (see onQueryStarted in
  * plansApi/staffApi/productsApi/jobsApi/locationsApi); PlansPage reads them
  * back via useLiveQuery as a fallback under the live network data.
+ *
+ * The fieldForm* tables (v3) are the exception: they are write-side, not a
+ * mirror. Nothing on the server holds field-form state, so these rows are the
+ * only copy of a technician's in-progress work until the PDF uploads.
  */
 class AppDB extends Dexie {
   plans!: Table<SavedPlan, string>;
@@ -18,6 +23,9 @@ class AppDB extends Dexie {
   // Small key/value store for bookkeeping (e.g. "when did each endpoint last
   // sync successfully") — not one of the mirrored API tables above.
   meta!: Table<{ key: string; value: string }, string>;
+  fieldFormDrafts!: Table<FieldFormDraft, string>;
+  fieldFormPhotos!: Table<FieldFormPhoto, string>;
+  fieldFormOutbox!: Table<FieldFormOutboxItem, string>;
 
   constructor() {
     super("job-organiser-cache");
@@ -30,6 +38,12 @@ class AppDB extends Dexie {
     });
     this.version(2).stores({
       meta: "key",
+    });
+    // Additive: existing tables are left alone, so cached plans/staff survive.
+    this.version(3).stores({
+      fieldFormDrafts: "id, jobId, updatedAt",
+      fieldFormPhotos: "id, draftId",
+      fieldFormOutbox: "id, status, createdAt, jobId",
     });
   }
 }
@@ -59,4 +73,27 @@ export async function setLastFetchedAt(key: string, iso: string): Promise<void> 
 export async function getLastFetchedAt(key: string): Promise<string | null> {
   const row = await db.meta.get(key);
   return row?.value ?? null;
+}
+
+/* ---------------------------------------------------------------- field forms */
+
+export const getFieldFormDraft = (id: string) => db.fieldFormDrafts.get(id);
+
+export const getFieldFormPhotos = (draftId: string) =>
+  db.fieldFormPhotos.where("draftId").equals(draftId).sortBy("capturedAt");
+
+export const getOutboxItems = () => db.fieldFormOutbox.orderBy("createdAt").toArray();
+
+/**
+ * Offline job lookup for a direct load of /field-form/:type/:jobId, where the
+ * job wasn't handed over via router state. Plans already cache their jobs
+ * inline (SavedPlan.jobs), so this needs no network.
+ */
+export async function getCachedJobById(jobId: string): Promise<Job | null> {
+  const plans = await db.plans.toArray();
+  for (const p of plans) {
+    const job = (p.jobs ?? []).find((j) => j.id === jobId);
+    if (job) return job;
+  }
+  return null;
 }
