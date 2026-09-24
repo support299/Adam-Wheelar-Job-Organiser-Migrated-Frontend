@@ -15,6 +15,7 @@ import { store } from "@/store/store";
 import { jobAttachmentsApi } from "@/api/jobAttachmentsApi";
 import { db } from "@/db/dexie";
 import { discardDraft } from "./draftStore";
+import { randomId } from "./ids";
 import type { FieldFormOutboxItem, FieldFormType } from "./types";
 
 const STALE_UPLOAD_MS = 2 * 60 * 1000;
@@ -41,7 +42,7 @@ export type EnqueueInput = {
 /** Queue a rendered PDF and, if we're online, start pushing immediately. */
 export async function enqueueUpload(input: EnqueueInput): Promise<FieldFormOutboxItem> {
   const item: FieldFormOutboxItem = {
-    id: crypto.randomUUID(),
+    id: randomId(),
     jobId: input.jobId,
     formType: input.formType,
     fileName: input.fileName,

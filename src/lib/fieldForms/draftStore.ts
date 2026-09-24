@@ -7,6 +7,7 @@
  */
 
 import { db } from "@/db/dexie";
+import { randomId } from "./ids";
 import type { Job } from "@/api/types";
 import type {
   FieldFormDraft,
@@ -72,7 +73,7 @@ export const listPhotos = (draftId: string) =>
 export async function addPhoto(
   photo: Omit<FieldFormPhoto, "id" | "capturedAt">,
 ): Promise<FieldFormPhoto> {
-  const row: FieldFormPhoto = { ...photo, id: crypto.randomUUID(), capturedAt: nowIso() };
+  const row: FieldFormPhoto = { ...photo, id: randomId(), capturedAt: nowIso() };
   await db.fieldFormPhotos.add(row);
   return row;
 }

@@ -6,6 +6,7 @@ import { useGetJobProductsQuery } from "@/api/jobsApi";
 import { useListProductsQuery } from "@/api/productsApi";
 import type { Product } from "@/api/types";
 import { draftIdFor, loadDraft, saveDraft } from "@/lib/fieldForms/draftStore";
+import { randomId } from "@/lib/fieldForms/ids";
 import type { InstallChecklistValues, JobSnapshot } from "@/lib/fieldForms/types";
 import { INSTALL_SYSTEM_STEPS, WRAP_UP_ITEMS, missingRequired, productStepId } from "./checklistContent";
 
@@ -198,7 +199,7 @@ export function useInstallChecklistForm({
   const addProductLine = useCallback(() => {
     setForm((f) => ({
       ...f,
-      productLines: [...f.productLines, { id: crypto.randomUUID(), name: "", quantity: "" }],
+      productLines: [...f.productLines, { id: randomId(), name: "", quantity: "" }],
     }));
   }, []);
 
